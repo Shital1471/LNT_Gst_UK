@@ -1,4 +1,5 @@
 import '../../../core/utils/gst_calculator.dart';
+import 'invoice_template_schema.dart';
 
 class InvoiceFormItem {
   final String description;
@@ -39,56 +40,104 @@ class InvoiceFormItem {
       rate: rate ?? this.rate,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'description': description,
+      'noOfVehicles': noOfVehicles,
+      'date': date?.toIso8601String(),
+      'fromTo': fromTo,
+      'quantityDays': quantityDays,
+      'rate': rate,
+    };
+  }
+
+  factory InvoiceFormItem.fromJson(Map<String, dynamic> json) {
+    return InvoiceFormItem(
+      description: json['description'] as String,
+      noOfVehicles: json['noOfVehicles'] as int?,
+      date: json['date'] != null ? DateTime.tryParse(json['date'] as String) : null,
+      fromTo: json['fromTo'] as String?,
+      quantityDays: (json['quantityDays'] as num).toDouble(),
+      rate: (json['rate'] as num).toDouble(),
+    );
+  }
 }
 
 class InvoiceFormState {
-  final String invoiceNumber;
-  final DateTime invoiceDate;
-  final DateTime dueDate;
-  final String bookingRef;
-  final DateTime? bookingDate;
-  final String customerName;
-  final String customerAddress;
-  final String customerGstNumber;
-  final String customerContactNumber;
-  
-  // Tourism specific fields
-  final String tourTrip;
-  final DateTime? travelDate;
-  final int? noOfDays;
-  final int? noOfVehicles;
-  final String coordinatorName;
-  
-  // Items
+  final InvoiceTemplateSchema activeTemplate;
+  final Map<String, dynamic> fieldValues;
   final List<InvoiceFormItem> items;
-  
-  // Tax / Payment Settings
   final double gstPercentage;
   final bool isGstInclusive;
   final double advancePaid;
-  final String templateType; // 'tourism' or 'standard'
 
   InvoiceFormState({
-    required this.invoiceNumber,
-    required this.invoiceDate,
-    required this.dueDate,
-    this.bookingRef = '',
-    this.bookingDate,
-    this.customerName = '',
-    this.customerAddress = '',
-    this.customerGstNumber = '',
-    this.customerContactNumber = '',
-    this.tourTrip = '',
-    this.travelDate,
-    this.noOfDays,
-    this.noOfVehicles,
-    this.coordinatorName = '',
+    required this.activeTemplate,
+    required this.fieldValues,
     this.items = const [],
     this.gstPercentage = 5.0,
     this.isGstInclusive = false,
     this.advancePaid = 0.0,
-    this.templateType = 'tourism',
   });
+
+  // Getters for compatibility with existing widgets
+  String get invoiceNumber => fieldValues['invoice_number']?.toString() ?? '';
+  DateTime get invoiceDate {
+    final val = fieldValues['invoice_date'];
+    if (val is DateTime) return val;
+    if (val != null) {
+      final parsed = DateTime.tryParse(val.toString());
+      if (parsed != null) return parsed;
+    }
+    return DateTime.now();
+  }
+  
+  DateTime get dueDate {
+    final val = fieldValues['due_date'];
+    if (val is DateTime) return val;
+    if (val != null) {
+      final parsed = DateTime.tryParse(val.toString());
+      if (parsed != null) return parsed;
+    }
+    return DateTime.now().add(const Duration(days: 7));
+  }
+
+  String get bookingRef => fieldValues['booking_ref']?.toString() ?? '';
+  DateTime? get bookingDate {
+    final val = fieldValues['booking_date'];
+    if (val is DateTime) return val;
+    if (val != null) return DateTime.tryParse(val.toString());
+    return null;
+  }
+
+  String get customerName => fieldValues['customer_name']?.toString() ?? '';
+  String get customerAddress => fieldValues['customer_address']?.toString() ?? '';
+  String get customerGstNumber => fieldValues['customer_gst']?.toString() ?? '';
+  String get customerContactNumber => fieldValues['customer_phone']?.toString() ?? '';
+  
+  // Tourism specific fields
+  String get tourTrip => fieldValues['tour_trip']?.toString() ?? '';
+  DateTime? get travelDate {
+    final val = fieldValues['travel_date'];
+    if (val is DateTime) return val;
+    if (val != null) return DateTime.tryParse(val.toString());
+    return null;
+  }
+  int? get noOfDays {
+    final val = fieldValues['no_of_days'];
+    if (val is int) return val;
+    if (val != null) return int.tryParse(val.toString());
+    return null;
+  }
+  int? get noOfVehicles {
+    final val = fieldValues['no_of_vehicles'];
+    if (val is int) return val;
+    if (val != null) return int.tryParse(val.toString());
+    return null;
+  }
+  String get coordinatorName => fieldValues['coordinator_name']?.toString() ?? '';
+  String get templateType => activeTemplate.id;
 
   double get rawSubTotal {
     return items.fold(0.0, (sum, item) => sum + item.amount);
@@ -107,46 +156,20 @@ class InvoiceFormState {
   }
 
   InvoiceFormState copyWith({
-    String? invoiceNumber,
-    DateTime? invoiceDate,
-    DateTime? dueDate,
-    String? bookingRef,
-    DateTime? bookingDate,
-    String? customerName,
-    String? customerAddress,
-    String? customerGstNumber,
-    String? customerContactNumber,
-    String? tourTrip,
-    DateTime? travelDate,
-    int? noOfDays,
-    int? noOfVehicles,
-    String? coordinatorName,
+    InvoiceTemplateSchema? activeTemplate,
+    Map<String, dynamic>? fieldValues,
     List<InvoiceFormItem>? items,
     double? gstPercentage,
     bool? isGstInclusive,
     double? advancePaid,
-    String? templateType,
   }) {
     return InvoiceFormState(
-      invoiceNumber: invoiceNumber ?? this.invoiceNumber,
-      invoiceDate: invoiceDate ?? this.invoiceDate,
-      dueDate: dueDate ?? this.dueDate,
-      bookingRef: bookingRef ?? this.bookingRef,
-      bookingDate: bookingDate ?? this.bookingDate,
-      customerName: customerName ?? this.customerName,
-      customerAddress: customerAddress ?? this.customerAddress,
-      customerGstNumber: customerGstNumber ?? this.customerGstNumber,
-      customerContactNumber: customerContactNumber ?? this.customerContactNumber,
-      tourTrip: tourTrip ?? this.tourTrip,
-      travelDate: travelDate ?? this.travelDate,
-      noOfDays: noOfDays ?? this.noOfDays,
-      noOfVehicles: noOfVehicles ?? this.noOfVehicles,
-      coordinatorName: coordinatorName ?? this.coordinatorName,
+      activeTemplate: activeTemplate ?? this.activeTemplate,
+      fieldValues: fieldValues ?? this.fieldValues,
       items: items ?? this.items,
       gstPercentage: gstPercentage ?? this.gstPercentage,
       isGstInclusive: isGstInclusive ?? this.isGstInclusive,
       advancePaid: advancePaid ?? this.advancePaid,
-      templateType: templateType ?? this.templateType,
     );
   }
 }

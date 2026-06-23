@@ -1073,6 +1073,28 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _templateSchemaJsonMeta =
+      const VerificationMeta('templateSchemaJson');
+  @override
+  late final GeneratedColumn<String> templateSchemaJson =
+      GeneratedColumn<String>(
+        'template_schema_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _fieldValuesJsonMeta = const VerificationMeta(
+    'fieldValuesJson',
+  );
+  @override
+  late final GeneratedColumn<String> fieldValuesJson = GeneratedColumn<String>(
+    'field_values_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1101,6 +1123,8 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
     pdfPath,
     docxPath,
     createdDate,
+    templateSchemaJson,
+    fieldValuesJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1330,6 +1354,24 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
     } else if (isInserting) {
       context.missing(_createdDateMeta);
     }
+    if (data.containsKey('template_schema_json')) {
+      context.handle(
+        _templateSchemaJsonMeta,
+        templateSchemaJson.isAcceptableOrUnknown(
+          data['template_schema_json']!,
+          _templateSchemaJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('field_values_json')) {
+      context.handle(
+        _fieldValuesJsonMeta,
+        fieldValuesJson.isAcceptableOrUnknown(
+          data['field_values_json']!,
+          _fieldValuesJsonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1443,6 +1485,14 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_date'],
       )!,
+      templateSchemaJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}template_schema_json'],
+      ),
+      fieldValuesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}field_values_json'],
+      ),
     );
   }
 
@@ -1479,6 +1529,8 @@ class Invoice extends DataClass implements Insertable<Invoice> {
   final String? pdfPath;
   final String? docxPath;
   final DateTime createdDate;
+  final String? templateSchemaJson;
+  final String? fieldValuesJson;
   const Invoice({
     required this.id,
     required this.invoiceNumber,
@@ -1506,6 +1558,8 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     this.pdfPath,
     this.docxPath,
     required this.createdDate,
+    this.templateSchemaJson,
+    this.fieldValuesJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1558,6 +1612,12 @@ class Invoice extends DataClass implements Insertable<Invoice> {
       map['docx_path'] = Variable<String>(docxPath);
     }
     map['created_date'] = Variable<DateTime>(createdDate);
+    if (!nullToAbsent || templateSchemaJson != null) {
+      map['template_schema_json'] = Variable<String>(templateSchemaJson);
+    }
+    if (!nullToAbsent || fieldValuesJson != null) {
+      map['field_values_json'] = Variable<String>(fieldValuesJson);
+    }
     return map;
   }
 
@@ -1611,6 +1671,12 @@ class Invoice extends DataClass implements Insertable<Invoice> {
           ? const Value.absent()
           : Value(docxPath),
       createdDate: Value(createdDate),
+      templateSchemaJson: templateSchemaJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(templateSchemaJson),
+      fieldValuesJson: fieldValuesJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fieldValuesJson),
     );
   }
 
@@ -1650,6 +1716,10 @@ class Invoice extends DataClass implements Insertable<Invoice> {
       pdfPath: serializer.fromJson<String?>(json['pdfPath']),
       docxPath: serializer.fromJson<String?>(json['docxPath']),
       createdDate: serializer.fromJson<DateTime>(json['createdDate']),
+      templateSchemaJson: serializer.fromJson<String?>(
+        json['templateSchemaJson'],
+      ),
+      fieldValuesJson: serializer.fromJson<String?>(json['fieldValuesJson']),
     );
   }
   @override
@@ -1684,6 +1754,8 @@ class Invoice extends DataClass implements Insertable<Invoice> {
       'pdfPath': serializer.toJson<String?>(pdfPath),
       'docxPath': serializer.toJson<String?>(docxPath),
       'createdDate': serializer.toJson<DateTime>(createdDate),
+      'templateSchemaJson': serializer.toJson<String?>(templateSchemaJson),
+      'fieldValuesJson': serializer.toJson<String?>(fieldValuesJson),
     };
   }
 
@@ -1714,6 +1786,8 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     Value<String?> pdfPath = const Value.absent(),
     Value<String?> docxPath = const Value.absent(),
     DateTime? createdDate,
+    Value<String?> templateSchemaJson = const Value.absent(),
+    Value<String?> fieldValuesJson = const Value.absent(),
   }) => Invoice(
     id: id ?? this.id,
     invoiceNumber: invoiceNumber ?? this.invoiceNumber,
@@ -1747,6 +1821,12 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     pdfPath: pdfPath.present ? pdfPath.value : this.pdfPath,
     docxPath: docxPath.present ? docxPath.value : this.docxPath,
     createdDate: createdDate ?? this.createdDate,
+    templateSchemaJson: templateSchemaJson.present
+        ? templateSchemaJson.value
+        : this.templateSchemaJson,
+    fieldValuesJson: fieldValuesJson.present
+        ? fieldValuesJson.value
+        : this.fieldValuesJson,
   );
   Invoice copyWithCompanion(InvoicesCompanion data) {
     return Invoice(
@@ -1808,6 +1888,12 @@ class Invoice extends DataClass implements Insertable<Invoice> {
       createdDate: data.createdDate.present
           ? data.createdDate.value
           : this.createdDate,
+      templateSchemaJson: data.templateSchemaJson.present
+          ? data.templateSchemaJson.value
+          : this.templateSchemaJson,
+      fieldValuesJson: data.fieldValuesJson.present
+          ? data.fieldValuesJson.value
+          : this.fieldValuesJson,
     );
   }
 
@@ -1839,7 +1925,9 @@ class Invoice extends DataClass implements Insertable<Invoice> {
           ..write('templateType: $templateType, ')
           ..write('pdfPath: $pdfPath, ')
           ..write('docxPath: $docxPath, ')
-          ..write('createdDate: $createdDate')
+          ..write('createdDate: $createdDate, ')
+          ..write('templateSchemaJson: $templateSchemaJson, ')
+          ..write('fieldValuesJson: $fieldValuesJson')
           ..write(')'))
         .toString();
   }
@@ -1872,6 +1960,8 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     pdfPath,
     docxPath,
     createdDate,
+    templateSchemaJson,
+    fieldValuesJson,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -1902,7 +1992,9 @@ class Invoice extends DataClass implements Insertable<Invoice> {
           other.templateType == this.templateType &&
           other.pdfPath == this.pdfPath &&
           other.docxPath == this.docxPath &&
-          other.createdDate == this.createdDate);
+          other.createdDate == this.createdDate &&
+          other.templateSchemaJson == this.templateSchemaJson &&
+          other.fieldValuesJson == this.fieldValuesJson);
 }
 
 class InvoicesCompanion extends UpdateCompanion<Invoice> {
@@ -1932,6 +2024,8 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
   final Value<String?> pdfPath;
   final Value<String?> docxPath;
   final Value<DateTime> createdDate;
+  final Value<String?> templateSchemaJson;
+  final Value<String?> fieldValuesJson;
   const InvoicesCompanion({
     this.id = const Value.absent(),
     this.invoiceNumber = const Value.absent(),
@@ -1959,6 +2053,8 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     this.pdfPath = const Value.absent(),
     this.docxPath = const Value.absent(),
     this.createdDate = const Value.absent(),
+    this.templateSchemaJson = const Value.absent(),
+    this.fieldValuesJson = const Value.absent(),
   });
   InvoicesCompanion.insert({
     this.id = const Value.absent(),
@@ -1987,6 +2083,8 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     this.pdfPath = const Value.absent(),
     this.docxPath = const Value.absent(),
     required DateTime createdDate,
+    this.templateSchemaJson = const Value.absent(),
+    this.fieldValuesJson = const Value.absent(),
   }) : invoiceNumber = Value(invoiceNumber),
        invoiceDate = Value(invoiceDate),
        dueDate = Value(dueDate),
@@ -2026,6 +2124,8 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     Expression<String>? pdfPath,
     Expression<String>? docxPath,
     Expression<DateTime>? createdDate,
+    Expression<String>? templateSchemaJson,
+    Expression<String>? fieldValuesJson,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -2055,6 +2155,9 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
       if (pdfPath != null) 'pdf_path': pdfPath,
       if (docxPath != null) 'docx_path': docxPath,
       if (createdDate != null) 'created_date': createdDate,
+      if (templateSchemaJson != null)
+        'template_schema_json': templateSchemaJson,
+      if (fieldValuesJson != null) 'field_values_json': fieldValuesJson,
     });
   }
 
@@ -2085,6 +2188,8 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     Value<String?>? pdfPath,
     Value<String?>? docxPath,
     Value<DateTime>? createdDate,
+    Value<String?>? templateSchemaJson,
+    Value<String?>? fieldValuesJson,
   }) {
     return InvoicesCompanion(
       id: id ?? this.id,
@@ -2114,6 +2219,8 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
       pdfPath: pdfPath ?? this.pdfPath,
       docxPath: docxPath ?? this.docxPath,
       createdDate: createdDate ?? this.createdDate,
+      templateSchemaJson: templateSchemaJson ?? this.templateSchemaJson,
+      fieldValuesJson: fieldValuesJson ?? this.fieldValuesJson,
     );
   }
 
@@ -2200,6 +2307,12 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     if (createdDate.present) {
       map['created_date'] = Variable<DateTime>(createdDate.value);
     }
+    if (templateSchemaJson.present) {
+      map['template_schema_json'] = Variable<String>(templateSchemaJson.value);
+    }
+    if (fieldValuesJson.present) {
+      map['field_values_json'] = Variable<String>(fieldValuesJson.value);
+    }
     return map;
   }
 
@@ -2231,7 +2344,9 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
           ..write('templateType: $templateType, ')
           ..write('pdfPath: $pdfPath, ')
           ..write('docxPath: $docxPath, ')
-          ..write('createdDate: $createdDate')
+          ..write('createdDate: $createdDate, ')
+          ..write('templateSchemaJson: $templateSchemaJson, ')
+          ..write('fieldValuesJson: $fieldValuesJson')
           ..write(')'))
         .toString();
   }
@@ -2802,6 +2917,370 @@ class InvoiceItemsCompanion extends UpdateCompanion<InvoiceItem> {
   }
 }
 
+class $InvoiceTemplatesTable extends InvoiceTemplates
+    with TableInfo<$InvoiceTemplatesTable, InvoiceTemplate> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $InvoiceTemplatesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _schemaJsonMeta = const VerificationMeta(
+    'schemaJson',
+  );
+  @override
+  late final GeneratedColumn<String> schemaJson = GeneratedColumn<String>(
+    'schema_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdDateMeta = const VerificationMeta(
+    'createdDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdDate = GeneratedColumn<DateTime>(
+    'created_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    description,
+    schemaJson,
+    createdDate,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'invoice_templates';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<InvoiceTemplate> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('schema_json')) {
+      context.handle(
+        _schemaJsonMeta,
+        schemaJson.isAcceptableOrUnknown(data['schema_json']!, _schemaJsonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_schemaJsonMeta);
+    }
+    if (data.containsKey('created_date')) {
+      context.handle(
+        _createdDateMeta,
+        createdDate.isAcceptableOrUnknown(
+          data['created_date']!,
+          _createdDateMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdDateMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  InvoiceTemplate map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return InvoiceTemplate(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+      schemaJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}schema_json'],
+      )!,
+      createdDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_date'],
+      )!,
+    );
+  }
+
+  @override
+  $InvoiceTemplatesTable createAlias(String alias) {
+    return $InvoiceTemplatesTable(attachedDatabase, alias);
+  }
+}
+
+class InvoiceTemplate extends DataClass implements Insertable<InvoiceTemplate> {
+  final int id;
+  final String name;
+  final String? description;
+  final String schemaJson;
+  final DateTime createdDate;
+  const InvoiceTemplate({
+    required this.id,
+    required this.name,
+    this.description,
+    required this.schemaJson,
+    required this.createdDate,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    map['schema_json'] = Variable<String>(schemaJson);
+    map['created_date'] = Variable<DateTime>(createdDate);
+    return map;
+  }
+
+  InvoiceTemplatesCompanion toCompanion(bool nullToAbsent) {
+    return InvoiceTemplatesCompanion(
+      id: Value(id),
+      name: Value(name),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      schemaJson: Value(schemaJson),
+      createdDate: Value(createdDate),
+    );
+  }
+
+  factory InvoiceTemplate.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return InvoiceTemplate(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      description: serializer.fromJson<String?>(json['description']),
+      schemaJson: serializer.fromJson<String>(json['schemaJson']),
+      createdDate: serializer.fromJson<DateTime>(json['createdDate']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'description': serializer.toJson<String?>(description),
+      'schemaJson': serializer.toJson<String>(schemaJson),
+      'createdDate': serializer.toJson<DateTime>(createdDate),
+    };
+  }
+
+  InvoiceTemplate copyWith({
+    int? id,
+    String? name,
+    Value<String?> description = const Value.absent(),
+    String? schemaJson,
+    DateTime? createdDate,
+  }) => InvoiceTemplate(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    description: description.present ? description.value : this.description,
+    schemaJson: schemaJson ?? this.schemaJson,
+    createdDate: createdDate ?? this.createdDate,
+  );
+  InvoiceTemplate copyWithCompanion(InvoiceTemplatesCompanion data) {
+    return InvoiceTemplate(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      schemaJson: data.schemaJson.present
+          ? data.schemaJson.value
+          : this.schemaJson,
+      createdDate: data.createdDate.present
+          ? data.createdDate.value
+          : this.createdDate,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('InvoiceTemplate(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('schemaJson: $schemaJson, ')
+          ..write('createdDate: $createdDate')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, description, schemaJson, createdDate);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is InvoiceTemplate &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.description == this.description &&
+          other.schemaJson == this.schemaJson &&
+          other.createdDate == this.createdDate);
+}
+
+class InvoiceTemplatesCompanion extends UpdateCompanion<InvoiceTemplate> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String?> description;
+  final Value<String> schemaJson;
+  final Value<DateTime> createdDate;
+  const InvoiceTemplatesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.description = const Value.absent(),
+    this.schemaJson = const Value.absent(),
+    this.createdDate = const Value.absent(),
+  });
+  InvoiceTemplatesCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    this.description = const Value.absent(),
+    required String schemaJson,
+    required DateTime createdDate,
+  }) : name = Value(name),
+       schemaJson = Value(schemaJson),
+       createdDate = Value(createdDate);
+  static Insertable<InvoiceTemplate> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? description,
+    Expression<String>? schemaJson,
+    Expression<DateTime>? createdDate,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (description != null) 'description': description,
+      if (schemaJson != null) 'schema_json': schemaJson,
+      if (createdDate != null) 'created_date': createdDate,
+    });
+  }
+
+  InvoiceTemplatesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<String?>? description,
+    Value<String>? schemaJson,
+    Value<DateTime>? createdDate,
+  }) {
+    return InvoiceTemplatesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      schemaJson: schemaJson ?? this.schemaJson,
+      createdDate: createdDate ?? this.createdDate,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (schemaJson.present) {
+      map['schema_json'] = Variable<String>(schemaJson.value);
+    }
+    if (createdDate.present) {
+      map['created_date'] = Variable<DateTime>(createdDate.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('InvoiceTemplatesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('schemaJson: $schemaJson, ')
+          ..write('createdDate: $createdDate')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2810,6 +3289,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $InvoicesTable invoices = $InvoicesTable(this);
   late final $InvoiceItemsTable invoiceItems = $InvoiceItemsTable(this);
+  late final $InvoiceTemplatesTable invoiceTemplates = $InvoiceTemplatesTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2818,6 +3300,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     companyProfiles,
     invoices,
     invoiceItems,
+    invoiceTemplates,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -3223,6 +3706,8 @@ typedef $$InvoicesTableCreateCompanionBuilder =
       Value<String?> pdfPath,
       Value<String?> docxPath,
       required DateTime createdDate,
+      Value<String?> templateSchemaJson,
+      Value<String?> fieldValuesJson,
     });
 typedef $$InvoicesTableUpdateCompanionBuilder =
     InvoicesCompanion Function({
@@ -3252,6 +3737,8 @@ typedef $$InvoicesTableUpdateCompanionBuilder =
       Value<String?> pdfPath,
       Value<String?> docxPath,
       Value<DateTime> createdDate,
+      Value<String?> templateSchemaJson,
+      Value<String?> fieldValuesJson,
     });
 
 final class $$InvoicesTableReferences
@@ -3413,6 +3900,16 @@ class $$InvoicesTableFilterComposer
 
   ColumnFilters<DateTime> get createdDate => $composableBuilder(
     column: $table.createdDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get templateSchemaJson => $composableBuilder(
+    column: $table.templateSchemaJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fieldValuesJson => $composableBuilder(
+    column: $table.fieldValuesJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3580,6 +4077,16 @@ class $$InvoicesTableOrderingComposer
     column: $table.createdDate,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get templateSchemaJson => $composableBuilder(
+    column: $table.templateSchemaJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fieldValuesJson => $composableBuilder(
+    column: $table.fieldValuesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$InvoicesTableAnnotationComposer
@@ -3701,6 +4208,16 @@ class $$InvoicesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get templateSchemaJson => $composableBuilder(
+    column: $table.templateSchemaJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get fieldValuesJson => $composableBuilder(
+    column: $table.fieldValuesJson,
+    builder: (column) => column,
+  );
+
   Expression<T> invoiceItemsRefs<T extends Object>(
     Expression<T> Function($$InvoiceItemsTableAnnotationComposer a) f,
   ) {
@@ -3781,6 +4298,8 @@ class $$InvoicesTableTableManager
                 Value<String?> pdfPath = const Value.absent(),
                 Value<String?> docxPath = const Value.absent(),
                 Value<DateTime> createdDate = const Value.absent(),
+                Value<String?> templateSchemaJson = const Value.absent(),
+                Value<String?> fieldValuesJson = const Value.absent(),
               }) => InvoicesCompanion(
                 id: id,
                 invoiceNumber: invoiceNumber,
@@ -3808,6 +4327,8 @@ class $$InvoicesTableTableManager
                 pdfPath: pdfPath,
                 docxPath: docxPath,
                 createdDate: createdDate,
+                templateSchemaJson: templateSchemaJson,
+                fieldValuesJson: fieldValuesJson,
               ),
           createCompanionCallback:
               ({
@@ -3837,6 +4358,8 @@ class $$InvoicesTableTableManager
                 Value<String?> pdfPath = const Value.absent(),
                 Value<String?> docxPath = const Value.absent(),
                 required DateTime createdDate,
+                Value<String?> templateSchemaJson = const Value.absent(),
+                Value<String?> fieldValuesJson = const Value.absent(),
               }) => InvoicesCompanion.insert(
                 id: id,
                 invoiceNumber: invoiceNumber,
@@ -3864,6 +4387,8 @@ class $$InvoicesTableTableManager
                 pdfPath: pdfPath,
                 docxPath: docxPath,
                 createdDate: createdDate,
+                templateSchemaJson: templateSchemaJson,
+                fieldValuesJson: fieldValuesJson,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -4313,6 +4838,212 @@ typedef $$InvoiceItemsTableProcessedTableManager =
       InvoiceItem,
       PrefetchHooks Function({bool invoiceId})
     >;
+typedef $$InvoiceTemplatesTableCreateCompanionBuilder =
+    InvoiceTemplatesCompanion Function({
+      Value<int> id,
+      required String name,
+      Value<String?> description,
+      required String schemaJson,
+      required DateTime createdDate,
+    });
+typedef $$InvoiceTemplatesTableUpdateCompanionBuilder =
+    InvoiceTemplatesCompanion Function({
+      Value<int> id,
+      Value<String> name,
+      Value<String?> description,
+      Value<String> schemaJson,
+      Value<DateTime> createdDate,
+    });
+
+class $$InvoiceTemplatesTableFilterComposer
+    extends Composer<_$AppDatabase, $InvoiceTemplatesTable> {
+  $$InvoiceTemplatesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get schemaJson => $composableBuilder(
+    column: $table.schemaJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdDate => $composableBuilder(
+    column: $table.createdDate,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$InvoiceTemplatesTableOrderingComposer
+    extends Composer<_$AppDatabase, $InvoiceTemplatesTable> {
+  $$InvoiceTemplatesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get schemaJson => $composableBuilder(
+    column: $table.schemaJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdDate => $composableBuilder(
+    column: $table.createdDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$InvoiceTemplatesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $InvoiceTemplatesTable> {
+  $$InvoiceTemplatesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get schemaJson => $composableBuilder(
+    column: $table.schemaJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdDate => $composableBuilder(
+    column: $table.createdDate,
+    builder: (column) => column,
+  );
+}
+
+class $$InvoiceTemplatesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $InvoiceTemplatesTable,
+          InvoiceTemplate,
+          $$InvoiceTemplatesTableFilterComposer,
+          $$InvoiceTemplatesTableOrderingComposer,
+          $$InvoiceTemplatesTableAnnotationComposer,
+          $$InvoiceTemplatesTableCreateCompanionBuilder,
+          $$InvoiceTemplatesTableUpdateCompanionBuilder,
+          (
+            InvoiceTemplate,
+            BaseReferences<
+              _$AppDatabase,
+              $InvoiceTemplatesTable,
+              InvoiceTemplate
+            >,
+          ),
+          InvoiceTemplate,
+          PrefetchHooks Function()
+        > {
+  $$InvoiceTemplatesTableTableManager(
+    _$AppDatabase db,
+    $InvoiceTemplatesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$InvoiceTemplatesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$InvoiceTemplatesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$InvoiceTemplatesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<String> schemaJson = const Value.absent(),
+                Value<DateTime> createdDate = const Value.absent(),
+              }) => InvoiceTemplatesCompanion(
+                id: id,
+                name: name,
+                description: description,
+                schemaJson: schemaJson,
+                createdDate: createdDate,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String name,
+                Value<String?> description = const Value.absent(),
+                required String schemaJson,
+                required DateTime createdDate,
+              }) => InvoiceTemplatesCompanion.insert(
+                id: id,
+                name: name,
+                description: description,
+                schemaJson: schemaJson,
+                createdDate: createdDate,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$InvoiceTemplatesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $InvoiceTemplatesTable,
+      InvoiceTemplate,
+      $$InvoiceTemplatesTableFilterComposer,
+      $$InvoiceTemplatesTableOrderingComposer,
+      $$InvoiceTemplatesTableAnnotationComposer,
+      $$InvoiceTemplatesTableCreateCompanionBuilder,
+      $$InvoiceTemplatesTableUpdateCompanionBuilder,
+      (
+        InvoiceTemplate,
+        BaseReferences<_$AppDatabase, $InvoiceTemplatesTable, InvoiceTemplate>,
+      ),
+      InvoiceTemplate,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4323,4 +5054,6 @@ class $AppDatabaseManager {
       $$InvoicesTableTableManager(_db, _db.invoices);
   $$InvoiceItemsTableTableManager get invoiceItems =>
       $$InvoiceItemsTableTableManager(_db, _db.invoiceItems);
+  $$InvoiceTemplatesTableTableManager get invoiceTemplates =>
+      $$InvoiceTemplatesTableTableManager(_db, _db.invoiceTemplates);
 }

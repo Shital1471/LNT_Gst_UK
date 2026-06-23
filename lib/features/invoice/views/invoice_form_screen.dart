@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,8 +7,11 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../company/providers/company_provider.dart';
 import '../models/invoice_form_state.dart';
+import '../models/invoice_template_schema.dart';
 import '../providers/invoice_form_provider.dart';
 import 'invoice_preview_screen.dart';
+import 'invoice_designer_screen.dart';
+import 'template_management_screen.dart';
 import '../../../core/utils/num_to_words.dart';
 
 class InvoiceFormScreen extends ConsumerStatefulWidget {
@@ -19,27 +23,14 @@ class InvoiceFormScreen extends ConsumerStatefulWidget {
 
 class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
   final _df = DateFormat('dd/MM/yyyy');
-  
-  final _customerNameCtrl = TextEditingController();
-  final _customerAddressCtrl = TextEditingController();
-  final _customerGstCtrl = TextEditingController();
-  final _customerContactCtrl = TextEditingController();
-
-  final _tourTripCtrl = TextEditingController();
-  final _noOfDaysCtrl = TextEditingController();
-  final _noOfVehiclesCtrl = TextEditingController();
-  final _coordinatorCtrl = TextEditingController();
-  final _invoiceNoCtrl = TextEditingController();
+  final Map<String, TextEditingController> _controllers = {};
   final _advancePaidCtrl = TextEditingController();
-  final _bookingRefCtrl = TextEditingController();
-
-  bool _isGstCustom = false;
   final _customGstCtrl = TextEditingController();
+  bool _isGstCustom = false;
 
   @override
   void initState() {
     super.initState();
-    // Register listeners to sync text controllers with provider state
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final state = ref.read(invoiceFormProvider);
       _syncControllersWithState(state);
@@ -47,32 +38,38 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
   }
 
   void _syncControllersWithState(InvoiceFormState state) {
-    _customerNameCtrl.text = state.customerName;
-    _customerAddressCtrl.text = state.customerAddress;
-    _customerGstCtrl.text = state.customerGstNumber;
-    _customerContactCtrl.text = state.customerContactNumber;
+    for (final sec in state.activeTemplate.sections) {
+      for (final field in sec.fields) {
+        final val = state.fieldValues[field.id];
+        final text = _formatValueForText(val, field.valueType);
+        
+        if (_controllers.containsKey(field.id)) {
+          if (_controllers[field.id]!.text != text) {
+            _controllers[field.id]!.text = text;
+          }
+        } else {
+          _controllers[field.id] = TextEditingController(text: text);
+        }
+      }
+    }
     
-    _tourTripCtrl.text = state.tourTrip;
-    _noOfDaysCtrl.text = state.noOfDays?.toString() ?? '';
-    _noOfVehiclesCtrl.text = state.noOfVehicles?.toString() ?? '';
-    _coordinatorCtrl.text = state.coordinatorName;
-    _invoiceNoCtrl.text = state.invoiceNumber;
-    _bookingRefCtrl.text = state.bookingRef;
     _advancePaidCtrl.text = state.advancePaid == 0 ? '' : state.advancePaid.toString();
+    _customGstCtrl.text = state.gstPercentage.toString();
+  }
+
+  String _formatValueForText(dynamic val, String type) {
+    if (val == null) return '';
+    if (val is DateTime) {
+      return _df.format(val);
+    }
+    return val.toString();
   }
 
   @override
   void dispose() {
-    _customerNameCtrl.dispose();
-    _customerAddressCtrl.dispose();
-    _customerGstCtrl.dispose();
-    _customerContactCtrl.dispose();
-    _tourTripCtrl.dispose();
-    _noOfDaysCtrl.dispose();
-    _noOfVehiclesCtrl.dispose();
-    _coordinatorCtrl.dispose();
-    _invoiceNoCtrl.dispose();
-    _bookingRefCtrl.dispose();
+    for (final ctrl in _controllers.values) {
+      ctrl.dispose();
+    }
     _advancePaidCtrl.dispose();
     _customGstCtrl.dispose();
     super.dispose();
@@ -159,7 +156,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     Expanded(
                       child: TextField(
                         controller: qtyCtrl,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(labelText: isTourism ? 'Qty / Days' : 'Qty'),
                       ),
                     ),
@@ -167,7 +164,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     Expanded(
                       child: TextField(
                         controller: rateCtrl,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: const InputDecoration(labelText: 'Rate (Rs.)'),
                       ),
                     ),
@@ -271,7 +268,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     Expanded(
                       child: TextField(
                         controller: qtyCtrl,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(labelText: isTourism ? 'Qty / Days' : 'Qty'),
                       ),
                     ),
@@ -279,7 +276,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     Expanded(
                       child: TextField(
                         controller: rateCtrl,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: const InputDecoration(labelText: 'Rate (Rs.)'),
                       ),
                     ),
@@ -316,7 +313,6 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
   }
 
   Future<void> _previewAndSave() async {
-    // Perform validation
     final state = ref.read(invoiceFormProvider);
     if (state.customerName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -331,7 +327,6 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
       return;
     }
 
-    // Load company profile
     final companyVal = ref.read(companyProfileStateProvider);
     final company = companyVal.value;
 
@@ -342,10 +337,8 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
       return;
     }
 
-    // Save active state database record
     final invoiceId = await ref.read(invoiceFormProvider.notifier).saveInvoice();
 
-    // Query full details from database to ensure consistency
     final db = ref.read(databaseProvider);
     final invoiceHeader = await (db.select(db.invoices)..where((t) => t.id.equals(invoiceId))).getSingle();
     final itemsList = await (db.select(db.invoiceItems)..where((t) => t.invoiceId.equals(invoiceId))).get();
@@ -361,8 +354,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
           ),
         ),
       ).then((_) {
-        // Increment next invoice number upon returning
-        ref.read(invoiceFormProvider.notifier).initDefaults();
+        ref.read(invoiceFormProvider.notifier).initDefaults(template: state.activeTemplate);
         _syncControllersWithState(ref.read(invoiceFormProvider));
       });
     }
@@ -371,7 +363,9 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(invoiceFormProvider);
-    final isTourism = state.templateType == 'tourism';
+    final templatesVal = ref.watch(templatesProvider);
+
+    _syncControllersWithState(state);
 
     return CallbackShortcuts(
       bindings: {
@@ -389,34 +383,56 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
           appBar: AppBar(
             title: const Text('Generate Invoice'),
             actions: [
-              // Template Selector Toggle
-              Container(
-                margin: const EdgeInsets.only(right: 16),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryGreen.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.description, size: 16, color: AppTheme.primaryGreen),
-                    const SizedBox(width: 8),
-                    DropdownButton<String>(
-                      value: state.templateType,
-                      underline: const SizedBox(),
-                      items: const [
-                        DropdownMenuItem(value: 'tourism', child: Text('Tourism Layout', style: TextStyle(fontSize: 12))),
-                        DropdownMenuItem(value: 'standard', child: Text('Standard Layout', style: TextStyle(fontSize: 12))),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          ref.read(invoiceFormProvider.notifier).updateFields(templateType: val);
-                        }
-                      },
-                    ),
-                  ],
-                ),
+              // Visual designer button
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const InvoiceDesignerScreen()),
+                  );
+                },
+                icon: const Icon(Icons.palette),
+                label: const Text('Designer'),
               ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const TemplateManagementScreen()),
+                  );
+                },
+                icon: const Icon(Icons.tune),
+                label: const Text('Templates'),
+              ),
+              const SizedBox(width: 16),
+              // Dynamic Templates List Dropdown
+              templatesVal.when(
+                data: (list) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryGreen.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: DropdownButton<String>(
+                    value: state.activeTemplate.id,
+                    underline: const SizedBox(),
+                    items: list.map((t) {
+                      return DropdownMenuItem(value: t.id, child: Text(t.name, style: const TextStyle(fontSize: 12)));
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        final template = list.firstWhere((t) => t.id == val);
+                        ref.read(invoiceFormProvider.notifier).updateTemplate(template);
+                        _syncControllersWithState(ref.read(invoiceFormProvider));
+                      }
+                    },
+                  ),
+                ),
+                loading: () => const CircularProgressIndicator(),
+                error: (e, _) => const Icon(Icons.error),
+              ),
+              const SizedBox(width: 8),
               IconButton(
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Reset Form',
@@ -427,414 +443,397 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
               )
             ],
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ROW 1: Customer Billing & Invoice Metadata
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Billing Card
-                    Expanded(
-                      flex: 3,
-                      child: Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('BILL TO', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue)),
-                              const SizedBox(height: 16),
-                              TextField(
-                                controller: _customerNameCtrl,
-                                decoration: const InputDecoration(labelText: 'Customer/Company Name *', prefixIcon: Icon(Icons.person)),
-                                onChanged: (val) => ref.read(invoiceFormProvider.notifier).updateFields(customerName: val),
-                              ),
-                              const SizedBox(height: 12),
-                              TextField(
-                                controller: _customerAddressCtrl,
-                                decoration: const InputDecoration(labelText: 'Billing Address *', prefixIcon: Icon(Icons.location_city)),
-                                onChanged: (val) => ref.read(invoiceFormProvider.notifier).updateFields(customerAddress: val),
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _customerGstCtrl,
-                                      decoration: const InputDecoration(labelText: 'Customer GSTIN', prefixIcon: Icon(Icons.receipt)),
-                                      onChanged: (val) => ref.read(invoiceFormProvider.notifier).updateFields(customerGstNumber: val),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _customerContactCtrl,
-                                      keyboardType: TextInputType.phone,
-                                      decoration: const InputDecoration(labelText: 'Contact No.', prefixIcon: Icon(Icons.phone)),
-                                      onChanged: (val) => ref.read(invoiceFormProvider.notifier).updateFields(customerContactNumber: val),
-                                    ),
-                                  ),
-                                ],
-                              )
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    
-                    // Metadata Card
-                    Expanded(
-                      flex: 2,
-                      child: Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('INVOICE META', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue)),
-                              const SizedBox(height: 16),
-                              TextField(
-                                controller: _invoiceNoCtrl,
-                                decoration: const InputDecoration(labelText: 'Invoice Number *', prefixIcon: Icon(Icons.tag)),
-                                onChanged: (val) => ref.read(invoiceFormProvider.notifier).updateFields(invoiceNumber: val),
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed: () => _selectDate(context, state.invoiceDate, (d) {
-                                        ref.read(invoiceFormProvider.notifier).updateFields(invoiceDate: d);
-                                      }),
-                                      icon: const Icon(Icons.calendar_today, size: 16),
-                                      label: Text('Date: ${_df.format(state.invoiceDate)}'),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed: () => _selectDate(context, state.dueDate, (d) {
-                                        ref.read(invoiceFormProvider.notifier).updateFields(dueDate: d);
-                                      }),
-                                      icon: const Icon(Icons.event, size: 16),
-                                      label: Text('Due: ${_df.format(state.dueDate)}'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              TextField(
-                                controller: _bookingRefCtrl,
-                                decoration: const InputDecoration(labelText: 'Booking Reference', prefixIcon: Icon(Icons.bookmark)),
-                                onChanged: (val) => ref.read(invoiceFormProvider.notifier).updateFields(bookingRef: val),
-                              ),
-                              if (state.bookingDate != null) ...[
-                                const SizedBox(height: 12),
-                                OutlinedButton.icon(
-                                  onPressed: () => _selectDate(context, state.bookingDate!, (d) {
-                                    ref.read(invoiceFormProvider.notifier).updateFields(bookingDate: d);
-                                  }),
-                                  icon: const Icon(Icons.date_range, size: 16),
-                                  label: Text('Booking Date: ${_df.format(state.bookingDate!)}'),
-                                ),
-                              ]
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
+          body: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Main Scrollable Editor Form
+              Expanded(
+                flex: 3,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ...(state.activeTemplate.sections
+                              .where((s) => s.isVisible && s.id != 'items_table' && s.id != 'tax_summary')
+                              .toList()
+                            ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex)))
+                          .map((sec) => _buildDynamicSectionCard(sec))
+                          .toList(),
+                      
+                      const SizedBox(height: 16),
 
-                // ROW 2: Service Booking details (Tourism only)
-                if (isTourism) ...[
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('TOURISM SERVICE DETAILS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue)),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: TextField(
-                                  controller: _tourTripCtrl,
-                                  decoration: const InputDecoration(labelText: 'Tour / Trip Details (Description)'),
-                                  onChanged: (val) => ref.read(invoiceFormProvider.notifier).updateFields(tourTrip: val),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () => _selectDate(context, state.travelDate ?? DateTime.now(), (d) {
-                                    ref.read(invoiceFormProvider.notifier).updateFields(travelDate: d);
-                                  }),
-                                  icon: const Icon(Icons.flight_takeoff, size: 16),
-                                  label: Text(state.travelDate != null ? 'Travel: ${_df.format(state.travelDate!)}' : 'Travel Date'),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _noOfDaysCtrl,
-                                  keyboardType: TextInputType.number,
-                                  decoration: const InputDecoration(labelText: 'No. of Days'),
-                                  onChanged: (val) => ref.read(invoiceFormProvider.notifier).updateFields(noOfDays: int.tryParse(val)),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextField(
-                                  controller: _noOfVehiclesCtrl,
-                                  keyboardType: TextInputType.number,
-                                  decoration: const InputDecoration(labelText: 'No. of Vehicles'),
-                                  onChanged: (val) => ref.read(invoiceFormProvider.notifier).updateFields(noOfVehicles: int.tryParse(val)),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextField(
-                                  controller: _coordinatorCtrl,
-                                  decoration: const InputDecoration(labelText: 'Co-ordinator Name'),
-                                  onChanged: (val) => ref.read(invoiceFormProvider.notifier).updateFields(coordinatorName: val),
-                                ),
-                              ),
-                            ],
-                          )
-                        ],
+                      // Items list editor Card (items_table section)
+                      _buildItemsEditorCard(state),
+                      
+                      const SizedBox(height: 16),
+
+                      // Calculation & GST setup modules
+                      _buildGstModuleCard(state),
+
+                      const SizedBox(height: 32),
+
+                      ElevatedButton.icon(
+                        onPressed: _previewAndSave,
+                        icon: const Icon(Icons.visibility),
+                        label: const Text('Preview & Generate Document'),
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                ],
+                ),
+              ),
 
-                // ROW 3: Line Items Editor Card
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // Right Quick Action Panel / Calculation summaries
+              Container(
+                width: 320,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  border: Border(left: BorderSide(color: Colors.grey.withOpacity(0.2))),
+                ),
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text('SUMMARY CALCULATIONS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.deepBlue)),
+                    const SizedBox(height: 16),
+                    _calcRow('Sub Total', state.gstCalculations.subTotal),
+                    _calcRow('CGST @ ${(state.gstPercentage / 2).toStringAsFixed(2)}%', state.gstCalculations.cgst),
+                    _calcRow('SGST @ ${(state.gstPercentage / 2).toStringAsFixed(2)}%', state.gstCalculations.sgst),
+                    const Divider(),
+                    _calcRow('Grand Total', state.gstCalculations.grandTotal, isBold: true),
+                    _calcRow('Advance Paid', state.advancePaid, isNegative: true),
+                    const Divider(color: AppTheme.primaryGreen),
+                    _calcRow('Amount to be Paid', state.balanceDue, isBold: true, color: AppTheme.primaryGreen),
+                    const SizedBox(height: 12),
+                    Text(
+                      'In Words: ${NumberToWords.convert(state.balanceDue)}',
+                      style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey),
+                    ),
+                    const Spacer(),
+                    Card(
+                      color: AppTheme.primaryGreen.withOpacity(0.05),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('LINE ITEMS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue)),
-                            ElevatedButton.icon(
-                              onPressed: _addNewItemDialog,
-                              icon: const Icon(Icons.add),
-                              label: const Text('Add Row'),
-                            )
+                            const Text('Layout presets', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                            const SizedBox(height: 4),
+                            Text('Preset: ${state.activeTemplate.layoutPreset.toUpperCase()}', style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+                            Text('Page dimensions: ${state.activeTemplate.pageFormat} (${state.activeTemplate.pageWidth.toStringAsFixed(0)}x${state.activeTemplate.pageHeight.toStringAsFixed(0)} pt)', style: const TextStyle(fontSize: 10, color: Colors.grey)),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        if (state.items.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 24),
-                            child: Center(child: Text('No items added yet. Click Add Row to add line items.')),
-                          )
-                        else
-                          ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: state.items.length,
-                            separatorBuilder: (c, i) => const Divider(),
-                            itemBuilder: (context, index) {
-                              final item = state.items[index];
-                              return ListTile(
-                                title: Text(item.description, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                subtitle: Text(
-                                  isTourism
-                                      ? '${item.noOfVehicles ?? 1} Vehicles x ${item.quantityDays} Days @ Rs. ${item.rate}'
-                                      : '${item.quantityDays} Qty @ Rs. ${item.rate}',
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'Rs. ${item.amount.toStringAsFixed(2)}',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      icon: const Icon(Icons.edit, color: Colors.blue),
-                                      onPressed: () => _editItemDialog(index, item),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete, color: Colors.red),
-                                      onPressed: () => ref.read(invoiceFormProvider.notifier).removeItem(index),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-                
-                const SizedBox(height: 16),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-                // ROW 4: GST Configuration & Summary block
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Left: GST Settings
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('GST CALCULATION MODULE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue)),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  const Text('GST Mode: '),
-                                  ChoiceChip(
-                                    label: const Text('Exclusive (Amount + GST)'),
-                                    selected: !state.isGstInclusive,
-                                    onSelected: (val) {
-                                      ref.read(invoiceFormProvider.notifier).updateFields(isGstInclusive: !val);
-                                    },
-                                  ),
-                                  const SizedBox(width: 12),
-                                  ChoiceChip(
-                                    label: const Text('Inclusive (GST in Total)'),
-                                    selected: state.isGstInclusive,
-                                    onSelected: (val) {
-                                      ref.read(invoiceFormProvider.notifier).updateFields(isGstInclusive: val);
-                                    },
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  const Text('GST Rate: '),
-                                  const SizedBox(width: 8),
-                                  if (!_isGstCustom) ...[
-                                    DropdownButton<double>(
-                                      value: state.gstPercentage,
-                                      items: const [
-                                        DropdownMenuItem(value: 0.0, child: Text('0% (Exempt)')),
-                                        DropdownMenuItem(value: 5.0, child: Text('5% (Tourism/Cab)')),
-                                        DropdownMenuItem(value: 12.0, child: Text('12%')),
-                                        DropdownMenuItem(value: 18.0, child: Text('18%')),
-                                        DropdownMenuItem(value: 28.0, child: Text('28%')),
-                                      ],
-                                      onChanged: (val) {
-                                        if (val != null) {
-                                          ref.read(invoiceFormProvider.notifier).updateFields(gstPercentage: val);
-                                        }
-                                      },
-                                    ),
-                                    TextButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _isGstCustom = true;
-                                        });
-                                      },
-                                      child: const Text('Custom Rate'),
-                                    )
-                                  ] else ...[
-                                    SizedBox(
-                                      width: 80,
-                                      child: TextField(
-                                        controller: _customGstCtrl,
-                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                        decoration: const InputDecoration(labelText: 'Rate %', contentPadding: EdgeInsets.all(8)),
-                                        onChanged: (val) {
-                                          final parsed = double.tryParse(val);
-                                          if (parsed != null) {
-                                            ref.read(invoiceFormProvider.notifier).updateFields(gstPercentage: parsed);
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _isGstCustom = false;
-                                        });
-                                        ref.read(invoiceFormProvider.notifier).updateFields(gstPercentage: 5.0);
-                                      },
-                                      child: const Text('Standard Rates'),
-                                    )
-                                  ]
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              TextField(
-                                controller: _advancePaidCtrl,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                decoration: const InputDecoration(labelText: 'Advance Payment Received (Rs.)', prefixIcon: Icon(Icons.payment)),
-                                onChanged: (val) => ref.read(invoiceFormProvider.notifier).updateFields(advancePaid: double.tryParse(val) ?? 0.0),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 24),
-                        
-                        // Right: Calculations Summary panel
-                        Container(
-                          width: 280,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryGreen.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.2)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Text('SUMMARY CALCULATIONS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.deepBlue)),
-                              const SizedBox(height: 12),
-                              _calcRow('Sub Total', state.gstCalculations.subTotal),
-                              _calcRow('CGST @ ${(state.gstPercentage / 2).toStringAsFixed(2)}%', state.gstCalculations.cgst),
-                              _calcRow('SGST @ ${(state.gstPercentage / 2).toStringAsFixed(2)}%', state.gstCalculations.sgst),
-                              const Divider(),
-                              _calcRow('Grand Total', state.gstCalculations.grandTotal, isBold: true),
-                              _calcRow('Advance Paid', state.advancePaid, isNegative: true),
-                              const Divider(color: AppTheme.primaryGreen),
-                              _calcRow('Amount to be Paid', state.balanceDue, isBold: true, color: AppTheme.primaryGreen),
-                              const SizedBox(height: 8),
-                              Text(
-                                'In Words: ${NumberToWords.convert(state.balanceDue)}',
-                                style: const TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        )
-                      ],
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 32),
+  // --- Dynamic Section Card Widget Builders ---
 
+  Widget _buildDynamicSectionCard(SectionSchema sec) {
+    final visibleFields = sec.fields.where((f) => f.isVisible).toList();
+    if (visibleFields.isEmpty) return const SizedBox();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(sec.title.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue)),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 16,
+              runSpacing: 12,
+              children: visibleFields.map((f) => _buildDynamicFieldWidget(sec.id, f)).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDynamicFieldWidget(String sectionId, FieldSchema field) {
+    // Generate text editing controller dynamically
+    final controller = _controllers[field.id];
+
+    // Determine field layout width
+    final isDesktop = MediaQuery.of(context).size.width > 900;
+    final width = isDesktop ? 300.0 : 1000.0; // Responsive width
+
+    Widget inputWidget;
+
+    switch (field.valueType) {
+      case 'checkbox':
+        final isChecked = ref.watch(invoiceFormProvider).fieldValues[field.id] == true;
+        inputWidget = SwitchListTile(
+          title: Text(field.label, style: const TextStyle(fontSize: 13)),
+          value: isChecked,
+          onChanged: (val) {
+            ref.read(invoiceFormProvider.notifier).updateFieldValue(field.id, val);
+          },
+        );
+        break;
+
+      case 'date':
+        final state = ref.watch(invoiceFormProvider);
+        final dateVal = state.fieldValues[field.id];
+        DateTime date = DateTime.now();
+        if (dateVal is DateTime) {
+          date = dateVal;
+        } else if (dateVal != null) {
+          date = DateTime.tryParse(dateVal.toString()) ?? DateTime.now();
+        }
+
+        inputWidget = OutlinedButton.icon(
+          onPressed: () => _selectDate(context, date, (d) {
+            ref.read(invoiceFormProvider.notifier).updateFieldValue(field.id, d);
+          }),
+          icon: const Icon(Icons.calendar_today, size: 16),
+          label: Text('${field.label}: ${_df.format(date)}'),
+        );
+        break;
+
+      case 'dropdown':
+        final state = ref.watch(invoiceFormProvider);
+        final currentVal = state.fieldValues[field.id]?.toString() ?? '';
+        final options = field.dropdownOptions ?? [];
+
+        inputWidget = DropdownButtonFormField<String>(
+          value: options.contains(currentVal) ? currentVal : (options.isNotEmpty ? options.first : null),
+          decoration: InputDecoration(labelText: field.label),
+          items: options.map((opt) {
+            return DropdownMenuItem(value: opt, child: Text(opt));
+          }).toList(),
+          onChanged: (val) {
+            if (val != null) {
+              ref.read(invoiceFormProvider.notifier).updateFieldValue(field.id, val);
+            }
+          },
+        );
+        break;
+
+      case 'number':
+        inputWidget = TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: field.label,
+            prefixIcon: const Icon(Icons.tag, size: 16),
+          ),
+          onChanged: (val) {
+            ref.read(invoiceFormProvider.notifier).updateFieldValue(field.id, val);
+          },
+        );
+        break;
+
+      case 'currency':
+        inputWidget = TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: field.label,
+            prefixIcon: const Icon(Icons.currency_rupee, size: 16),
+          ),
+          onChanged: (val) {
+            ref.read(invoiceFormProvider.notifier).updateFieldValue(field.id, val);
+          },
+        );
+        break;
+
+      case 'text':
+      default:
+        inputWidget = TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            labelText: field.label,
+            prefixIcon: const Icon(Icons.text_fields, size: 16),
+          ),
+          onChanged: (val) {
+            ref.read(invoiceFormProvider.notifier).updateFieldValue(field.id, val);
+          },
+        );
+        break;
+    }
+
+    return SizedBox(
+      width: width,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: inputWidget,
+      ),
+    );
+  }
+
+  Widget _buildItemsEditorCard(InvoiceFormState state) {
+    final isTourism = state.templateType == 'tourism';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('LINE ITEMS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue)),
                 ElevatedButton.icon(
-                  onPressed: _previewAndSave,
-                  icon: const Icon(Icons.visibility),
-                  label: const Text('Preview & Generate Document'),
+                  onPressed: _addNewItemDialog,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Row'),
+                )
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (state.items.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: Text('No items added yet. Click Add Row to add line items.')),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: state.items.length,
+                separatorBuilder: (c, i) => const Divider(),
+                itemBuilder: (context, index) {
+                  final item = state.items[index];
+                  return ListTile(
+                    title: Text(item.description, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(
+                      isTourism
+                          ? '${item.noOfVehicles ?? 1} Vehicles x ${item.quantityDays} Days @ Rs. ${item.rate}'
+                          : '${item.quantityDays} Qty @ Rs. ${item.rate}',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Rs. ${item.amount.toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => _editItemDialog(index, item),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => ref.read(invoiceFormProvider.notifier).removeItem(index),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGstModuleCard(InvoiceFormState state) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('GST CALCULATION MODULE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue)),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Text('GST Mode: '),
+                ChoiceChip(
+                  label: const Text('Exclusive (Amount + GST)'),
+                  selected: !state.isGstInclusive,
+                  onSelected: (val) {
+                    ref.read(invoiceFormProvider.notifier).updateFields(isGstInclusive: !val);
+                  },
+                ),
+                const SizedBox(width: 12),
+                ChoiceChip(
+                  label: const Text('Inclusive (GST in Total)'),
+                  selected: state.isGstInclusive,
+                  onSelected: (val) {
+                    ref.read(invoiceFormProvider.notifier).updateFields(isGstInclusive: val);
+                  },
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Text('GST Rate: '),
+                const SizedBox(width: 8),
+                if (!_isGstCustom) ...[
+                  DropdownButton<double>(
+                    value: [0.0, 5.0, 12.0, 18.0, 28.0].contains(state.gstPercentage) ? state.gstPercentage : 5.0,
+                    items: const [
+                      DropdownMenuItem(value: 0.0, child: Text('0% (Exempt)')),
+                      DropdownMenuItem(value: 5.0, child: Text('5% (Tourism/Cab)')),
+                      DropdownMenuItem(value: 12.0, child: Text('12%')),
+                      DropdownMenuItem(value: 18.0, child: Text('18%')),
+                      DropdownMenuItem(value: 28.0, child: Text('28%')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        ref.read(invoiceFormProvider.notifier).updateFields(gstPercentage: val);
+                      }
+                    },
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _isGstCustom = true;
+                      });
+                    },
+                    child: const Text('Custom Rate'),
+                  )
+                ] else ...[
+                  SizedBox(
+                    width: 80,
+                    child: TextField(
+                      controller: _customGstCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Rate %', contentPadding: EdgeInsets.all(8)),
+                      onChanged: (val) {
+                        final parsed = double.tryParse(val);
+                        if (parsed != null) {
+                          ref.read(invoiceFormProvider.notifier).updateFields(gstPercentage: parsed);
+                        }
+                      },
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _isGstCustom = false;
+                      });
+                      ref.read(invoiceFormProvider.notifier).updateFields(gstPercentage: 5.0);
+                    },
+                    child: const Text('Standard Rates'),
+                  )
+                ]
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _advancePaidCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Advance Payment Received (Rs.)', prefixIcon: Icon(Icons.payment)),
+              onChanged: (val) => ref.read(invoiceFormProvider.notifier).updateFields(advancePaid: double.tryParse(val) ?? 0.0),
+            ),
+          ],
         ),
       ),
     );

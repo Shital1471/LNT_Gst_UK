@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -13,6 +14,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/database_provider.dart';
 import '../services/pdf_generator.dart';
 import '../services/docx_generator.dart';
+import '../models/tourism_layout_config.dart';
+import 'tourism_preview_widget.dart';
 
 class InvoicePreviewScreen extends ConsumerStatefulWidget {
   final Invoice invoice;
@@ -166,6 +169,39 @@ class _InvoicePreviewScreenState extends ConsumerState<InvoicePreviewScreen> {
     }
   }
 
+  Map<String, dynamic> _getFieldValues() {
+    Map<String, dynamic> fieldValues = {};
+    if (widget.invoice.fieldValuesJson != null && widget.invoice.fieldValuesJson!.isNotEmpty) {
+      try {
+        fieldValues = jsonDecode(widget.invoice.fieldValuesJson!);
+      } catch (_) {}
+    } else {
+      fieldValues = {
+        'invoice_number': widget.invoice.invoiceNumber,
+        'invoice_date': widget.invoice.invoiceDate.toIso8601String(),
+        'due_date': widget.invoice.dueDate.toIso8601String(),
+        'booking_ref': widget.invoice.bookingRef ?? '',
+        'booking_date': widget.invoice.bookingDate?.toIso8601String(),
+        'customer_name': widget.invoice.customerName,
+        'customer_address': widget.invoice.customerAddress,
+        'customer_gst': widget.invoice.customerGstNumber ?? '',
+        'customer_phone': widget.invoice.customerContactNumber ?? '',
+        'tour_trip': widget.invoice.tourTrip ?? '',
+        'travel_date': widget.invoice.travelDate?.toIso8601String(),
+        'no_of_days': widget.invoice.noOfDays,
+        'no_of_vehicles': widget.invoice.noOfVehicles,
+        'coordinator_name': widget.invoice.coordinatorName ?? '',
+      };
+    }
+    fieldValues['company_name'] = widget.company.name;
+    fieldValues['company_address'] = widget.company.address;
+    fieldValues['company_gst'] = widget.company.gstNumber;
+    fieldValues['company_phone'] = widget.company.contactNumber;
+    fieldValues['company_email'] = widget.company.email;
+    fieldValues['company_website'] = 'www.lntourism.com';
+    return fieldValues;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -202,15 +238,42 @@ class _InvoicePreviewScreenState extends ConsumerState<InvoicePreviewScreen> {
             )
           : Row(
               children: [
-                // PDF Viewer
+                // Visual Viewer (Custom for tourism, PDF for others)
                 Expanded(
                   flex: 3,
-                  child: PdfPreview(
-                    build: (format) => _pdfBytes!,
-                    useActions: false, // We use our own custom Material 3 Action panel on the right
-                    allowPrinting: true,
-                    allowSharing: true,
-                  ),
+                  child: widget.invoice.templateType == 'tourism'
+                      ? LayoutBuilder(
+                          builder: (context, constraints) {
+                            final parsedFieldValues = _getFieldValues();
+                            final double availableWidth = constraints.maxWidth;
+                            final double scale = availableWidth < TourismLayoutConfig.pageWidth
+                                ? (availableWidth - 32) / TourismLayoutConfig.pageWidth
+                                : 1.0;
+                            return Container(
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.grey.shade900
+                                  : Colors.grey.shade100,
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.all(16),
+                                child: Center(
+                                  child: TourismInvoicePreviewWidget(
+                                    invoice: widget.invoice,
+                                    items: widget.items,
+                                    company: widget.company,
+                                    fieldValues: parsedFieldValues,
+                                    scale: scale,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : PdfPreview(
+                          build: (format) => _pdfBytes!,
+                          useActions: false, // We use our own custom Material 3 Action panel on the right
+                          allowPrinting: true,
+                          allowSharing: true,
+                        ),
                 ),
                 
                 // Action Control Center

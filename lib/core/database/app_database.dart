@@ -22,6 +22,14 @@ class CompanyProfiles extends Table {
   RealColumn get defaultGstPercentage => real().withDefault(const Constant(5.0))();
 }
 
+class InvoiceTemplates extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get description => text().nullable()();
+  TextColumn get schemaJson => text()(); // Stores serialized InvoiceTemplateSchema JSON
+  DateTimeColumn get createdDate => dateTime()();
+}
+
 class Invoices extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get invoiceNumber => text().customConstraint('UNIQUE')();
@@ -55,6 +63,10 @@ class Invoices extends Table {
   TextColumn get pdfPath => text().nullable()();
   TextColumn get docxPath => text().nullable()();
   DateTimeColumn get createdDate => dateTime()();
+
+  // Dynamic layout schema additions
+  TextColumn get templateSchemaJson => text().nullable()(); // Custom layout configuration JSON
+  TextColumn get fieldValuesJson => text().nullable()();    // Dynamic map-based values JSON
 }
 
 class InvoiceItems extends Table {
@@ -69,12 +81,26 @@ class InvoiceItems extends Table {
   RealColumn get amount => real()();
 }
 
-@DriftDatabase(tables: [CompanyProfiles, Invoices, InvoiceItems])
+@DriftDatabase(tables: [CompanyProfiles, Invoices, InvoiceItems, InvoiceTemplates])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) async {
+          await m.createAll();
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.createTable(invoiceTemplates);
+            await m.addColumn(invoices, invoices.templateSchemaJson);
+            await m.addColumn(invoices, invoices.fieldValuesJson);
+          }
+        },
+      );
 }
 
 LazyDatabase _openConnection() {

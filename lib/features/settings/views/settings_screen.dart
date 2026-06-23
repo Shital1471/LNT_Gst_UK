@@ -9,6 +9,8 @@ import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../company/providers/company_provider.dart';
 import '../../onboarding/views/company_setup_screen.dart';
+import '../../invoice/views/invoice_designer_screen.dart';
+import '../../invoice/views/template_management_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -165,6 +167,43 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   loading: () => const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator())),
                   error: (err, _) => ListTile(title: Text('Error loading profile: $err')),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Invoice Designer and templates management
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  title: const Text('Invoice Customizer', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.deepBlue)),
+                  leading: const Icon(Icons.dashboard_customize, color: AppTheme.primaryGreen),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  title: const Text('Visual Layout Designer'),
+                  subtitle: const Text('Visually drag-and-drop elements and customize styles'),
+                  leading: const Icon(Icons.palette, color: Colors.purple),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const InvoiceDesignerScreen()),
+                    );
+                  },
+                ),
+                const Divider(height: 1, indent: 56),
+                ListTile(
+                  title: const Text('Manage Templates'),
+                  subtitle: const Text('Import, export, duplicate, and configure invoice layout templates'),
+                  leading: const Icon(Icons.tune, color: Colors.blue),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const TemplateManagementScreen()),
+                    );
+                  },
                 ),
               ],
             ),
