@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:docx_creator/docx_creator.dart';
+import 'package:docx_creator/docx_creator.dart' hide DocxParagraph;
+import 'package:docx_creator/docx_creator.dart' as dx_base show DocxParagraph, DocxTextAlignment;
 import 'package:intl/intl.dart';
+import 'package:xml/xml.dart' show XmlBuilder;
 import '../../../core/database/app_database.dart';
 import '../models/invoice_template_schema.dart';
 
@@ -263,7 +265,7 @@ class DocxGeneratorService {
       );
 
       document.addTable(headerTable);
-      document.p(''); // Spacer
+      document.addP(''); // Spacer
 
       // -- 2. Bill-To & Service Details Table (Side-by-Side wrapped in dashed border) --
       final tourTrip = fieldValues['tour_trip'] ?? '';
@@ -381,7 +383,7 @@ class DocxGeneratorService {
       );
 
       document.addTable(billToAndServiceTable);
-      document.p(''); // Spacer
+      document.addP(''); // Spacer
 
       // -- 3. Items Table --
       final tourismHeaders = ['S No.', 'Description of Service', 'No. of Vehicles', 'Date', 'From-To', 'Qty/Days', 'Rate (Rs.)', 'Amt (Rs.)'];
@@ -469,7 +471,7 @@ class DocxGeneratorService {
       );
 
       document.addTable(itemsTable);
-      document.p(''); // Spacer
+      document.addP(''); // Spacer
 
       // -- 4. Totals Block (Words on Left, Totals on Right) --
       final double gstPercentage = (invoice.subTotal == 0) ? 0.0 : ((invoice.cgst + invoice.sgst) / invoice.subTotal * 100);
@@ -578,7 +580,7 @@ class DocxGeneratorService {
       );
 
       document.addTable(totalsLayoutTable);
-      document.p(''); // Spacer
+      document.addP(''); // Spacer
 
       // -- 5. Footer Block (Terms on Left, Bank in Middle, Signatory on Right) --
       final bankAccountName = fieldValues['bank_account_name'] ?? company.bankAccountName;
@@ -756,7 +758,7 @@ class DocxGeneratorService {
       );
 
       document.addTable(footerLayoutTable);
-      document.p(''); // Spacer
+      document.addP(''); // Spacer
 
     } else {
       // -------------------------------------------------------------
@@ -900,7 +902,7 @@ class DocxGeneratorService {
           );
 
           document.addTable(headerTable);
-          document.p('');
+          document.addP('');
 
         } else if (sec.id == 'customer_details' || sec.id == 'invoice_info' || sec.id == 'service_details') {
           final fields = sec.fields.where((field) => field.isVisible).toList();
@@ -971,7 +973,7 @@ class DocxGeneratorService {
             style: DocxTableStyle.plain,
             rows: fieldRows,
           ));
-          document.p('');
+          document.addP('');
 
         } else if (sec.id == 'items_table') {
           final isTransport = template.id == 'transport';
@@ -1077,7 +1079,7 @@ class DocxGeneratorService {
             ),
             rows: tblRows,
           ));
-          document.p('');
+          document.addP('');
 
         } else if (sec.id == 'tax_summary') {
           final rightW = (totalWidthTwips * 0.40).toInt();
@@ -1162,11 +1164,12 @@ class DocxGeneratorService {
             )
           );
 
-          document.p("Account Name: ${company.bankAccountName}");
-          document.p("Bank Name: ${company.bankName}");
-          document.p("Account Number: ${company.bankAccountNumber}");
-          document.p("IFSC Code: ${company.bankIfscCode}");
-          document.p('');
+          document.addP('');
+          document.addP("Account Name: ${company.bankAccountName}");
+          document.addP("Bank Name: ${company.bankName}");
+          document.addP("Account Number: ${company.bankAccountNumber}");
+          document.addP("IFSC Code: ${company.bankIfscCode}");
+          document.addP('');
 
         } else if (sec.id == 'terms_conditions') {
           final field = sec.fields.firstWhere((f) => f.id == 'terms_text', orElse: () => FieldSchema(id: 'terms_text', label: 'Terms', valueType: 'text'));
@@ -1183,9 +1186,9 @@ class DocxGeneratorService {
           );
 
           for (final term in termsList) {
-            document.p(term);
+            document.addP(term);
           }
-          document.p('');
+          document.addP('');
 
         } else if (sec.id == 'signature') {
           final field = sec.fields.firstWhere((f) => f.id == 'signatory_title', orElse: () => FieldSchema(id: 'signatory_title', label: 'Title', valueType: 'text'));
@@ -1260,5 +1263,274 @@ class DocxGeneratorService {
       if (parsed != null) return df.format(parsed);
     }
     return strVal;
+  }
+}
+
+class DocxParagraph extends dx_base.DocxParagraph {
+  DocxParagraph({
+    List<DocxInline> children = const [],
+    DocxAlign align = DocxAlign.left,
+    dx_base.DocxTextAlignment? textAlignment,
+    String? styleId,
+    int? spacingAfter,
+    int? spacingBefore,
+    int? lineSpacing,
+    String? lineRule,
+    int? indentLeft,
+    int? indentRight,
+    int? indentFirstLine,
+    DocxBorderSide? borderTop,
+    DocxBorderSide? borderBottomSide,
+    DocxBorderSide? borderLeft,
+    DocxBorderSide? borderRight,
+    DocxBorderSide? borderBetween,
+    int? paddingTop,
+    int? paddingBottom,
+    int? paddingLeft,
+    int? paddingRight,
+    String? shadingFill,
+    String? themeFill,
+    String? themeFillTint,
+    String? themeFillShade,
+    int? outlineLevel,
+    bool pageBreakBefore = false,
+    int? numId,
+    int? ilvl,
+    String? cnfStyle,
+    super.id,
+  }) : super(
+          children: children,
+          align: align,
+          textAlignment: textAlignment,
+          styleId: styleId,
+          spacingAfter: spacingAfter,
+          spacingBefore: spacingBefore,
+          lineSpacing: lineSpacing,
+          lineRule: lineRule,
+          indentLeft: indentLeft,
+          indentRight: indentRight,
+          indentFirstLine: indentFirstLine,
+          borderTop: borderTop,
+          borderBottomSide: borderBottomSide,
+          borderLeft: borderLeft,
+          borderRight: borderRight,
+          borderBetween: borderBetween,
+          paddingTop: paddingTop,
+          paddingBottom: paddingBottom,
+          paddingLeft: paddingLeft,
+          paddingRight: paddingRight,
+          shadingFill: shadingFill,
+          themeFill: themeFill,
+          themeFillTint: themeFillTint,
+          themeFillShade: themeFillShade,
+          outlineLevel: outlineLevel,
+          pageBreakBefore: pageBreakBefore,
+          numId: numId,
+          ilvl: ilvl,
+          cnfStyle: cnfStyle,
+        );
+
+  @override
+  void buildXml(XmlBuilder builder) {
+    builder.element(
+      'w:p',
+      nest: () {
+        // Paragraph properties
+        builder.element(
+          'w:pPr',
+          nest: () {
+            // 1. pStyle
+            if (styleId != null) {
+              builder.element('w:pStyle', nest: () {
+                builder.attribute('w:val', styleId!);
+              });
+            }
+
+            // 2. pageBreakBefore
+            if (pageBreakBefore) {
+              builder.element('w:pageBreakBefore');
+            }
+
+            // 3. numPr
+            if (numId != null) {
+              builder.element('w:numPr', nest: () {
+                builder.element('w:ilvl', nest: () {
+                  builder.attribute('w:val', (ilvl ?? 0).toString());
+                });
+                builder.element('w:numId', nest: () {
+                  builder.attribute('w:val', numId.toString());
+                });
+              });
+            }
+
+            // 4. pBdr (Borders & Padding)
+            if (borderTop != null ||
+                borderBottomSide != null ||
+                borderLeft != null ||
+                borderRight != null ||
+                borderBetween != null ||
+                paddingTop != null ||
+                paddingBottom != null ||
+                paddingLeft != null ||
+                paddingRight != null) {
+              builder.element(
+                'w:pBdr',
+                nest: () {
+                  void buildSide(String tag, DocxBorderSide? side, int? padding) {
+                    if (side != null) {
+                      final space = padding != null ? (padding / 20).round() : null;
+                      builder.element(tag, nest: () {
+                        builder.attribute('w:val', side.xmlStyle);
+                        builder.attribute('w:sz', side.size.toString());
+                        builder.attribute('w:space', (space ?? side.space).toString());
+                        if (side.color != DocxColor.auto) {
+                          builder.attribute('w:color', side.color.hex);
+                        } else {
+                          builder.attribute('w:color', 'auto');
+                        }
+                        if (side.themeColor != null) {
+                          builder.attribute('w:themeColor', side.themeColor!);
+                        }
+                        if (side.themeTint != null) {
+                          builder.attribute('w:themeTint', side.themeTint!);
+                        }
+                        if (side.themeShade != null) {
+                          builder.attribute('w:themeShade', side.themeShade!);
+                        }
+                      });
+                    } else if (padding != null) {
+                      final space = (padding / 20).round();
+                      final color = shadingFill ?? 'auto';
+                      builder.element(tag, nest: () {
+                        builder.attribute('w:val', 'nil');
+                        builder.attribute('w:sz', '0');
+                        builder.attribute('w:space', space.toString());
+                        builder.attribute('w:color', color);
+                      });
+                    }
+                  }
+
+                  buildSide('w:top', borderTop, paddingTop);
+                  buildSide('w:left', borderLeft, paddingLeft);
+                  buildSide('w:bottom', borderBottomSide, paddingBottom);
+                  buildSide('w:right', borderRight, paddingRight);
+
+                  if (borderBetween != null) {
+                    builder.element('w:between', nest: () {
+                      builder.attribute('w:val', borderBetween!.xmlStyle);
+                      builder.attribute('w:sz', borderBetween!.size.toString());
+                      builder.attribute('w:space', borderBetween!.space.toString());
+                      if (borderBetween!.color != DocxColor.auto) {
+                        builder.attribute('w:color', borderBetween!.color.hex);
+                      } else {
+                        builder.attribute('w:color', 'auto');
+                      }
+                    });
+                  }
+                },
+              );
+            }
+
+            // 5. shd (Shading)
+            if (shadingFill != null) {
+              builder.element('w:shd', nest: () {
+                builder.attribute('w:val', 'clear');
+                builder.attribute('w:color', 'auto');
+                builder.attribute('w:fill', shadingFill!);
+              });
+            }
+
+            // 6. spacing
+            if (spacingAfter != null ||
+                spacingBefore != null ||
+                lineSpacing != null ||
+                lineRule != null) {
+              builder.element('w:spacing', nest: () {
+                if (spacingAfter != null) {
+                  builder.attribute('w:after', spacingAfter.toString());
+                }
+                if (spacingBefore != null) {
+                  builder.attribute('w:before', spacingBefore.toString());
+                }
+                if (lineSpacing != null) {
+                  builder.attribute('w:line', lineSpacing.toString());
+                }
+                if (lineRule != null) {
+                  builder.attribute('w:lineRule', lineRule!);
+                }
+              });
+            }
+
+            // 7. ind (Indentation)
+            if (indentLeft != null || indentRight != null || indentFirstLine != null) {
+              builder.element('w:ind', nest: () {
+                if (indentLeft != null) {
+                  builder.attribute('w:left', indentLeft.toString());
+                }
+                if (indentRight != null) {
+                  builder.attribute('w:right', indentRight.toString());
+                }
+                if (indentFirstLine != null) {
+                  builder.attribute('w:firstLine', indentFirstLine.toString());
+                }
+              });
+            }
+
+            // 8. jc (Alignment) - FIXED to standard left/right values for Word compatibility
+            builder.element('w:jc', nest: () {
+              String val = 'left';
+              if (align == DocxAlign.center) {
+                val = 'center';
+              } else if (align == DocxAlign.right) {
+                val = 'right';
+              } else if (align == DocxAlign.justify) {
+                val = 'both';
+              }
+              builder.attribute('w:val', val);
+            });
+
+            // 8.5 textAlignment
+            if (textAlignment != null) {
+              builder.element('w:textAlignment', nest: () {
+                builder.attribute('w:val', textAlignment!.xmlValue);
+              });
+            }
+
+            // 9. outlineLvl
+            if (outlineLevel != null) {
+              builder.element('w:outlineLvl', nest: () {
+                builder.attribute('w:val', outlineLevel.toString());
+              });
+            }
+
+            // 10. cnfStyle
+            if (cnfStyle != null) {
+              builder.element('w:cnfStyle', nest: () {
+                builder.attribute('w:val', cnfStyle!);
+              });
+            }
+          },
+        );
+
+        // Child runs
+        for (var child in children) {
+          child.buildXml(builder);
+        }
+      },
+    );
+  }
+}
+
+extension DocxDocumentBuilderExtension on DocxDocumentBuilder {
+  DocxDocumentBuilder addP(
+    String text, {
+    DocxAlign align = DocxAlign.left,
+    DocxBorderSide? borderBottom,
+  }) {
+    return paragraph(DocxParagraph(
+      children: text.isEmpty ? [] : [DocxText(text)],
+      align: align,
+      borderBottomSide: borderBottom,
+    ));
   }
 }

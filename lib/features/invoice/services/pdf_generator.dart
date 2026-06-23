@@ -62,9 +62,21 @@ class PdfGeneratorService {
     fieldValues['company_email'] = company.email;
     fieldValues['company_website'] = 'www.lntourism.com';
 
+    final isTourism = template.id == 'tourism';
+
     // 3. Determine Page dimensions
     PdfPageFormat pageFormat = PdfPageFormat.a4;
-    if (template.pageFormat == 'Letter') {
+    if (isTourism) {
+      final double tableHeaderHeight = 20.0;
+      final double tableRowHeight = 20.0;
+      final double tableHeight = tableHeaderHeight + (items.length * tableRowHeight);
+      final double totalsBoxY = 275.0 + tableHeight + 10.0;
+      final double wordsBoxY = totalsBoxY + 90.0 + 10.0;
+      final double footerTopLineY = wordsBoxY + 20.0 + 10.0;
+      final double footerBottomLineY = footerTopLineY + 125.0;
+      final double dynamicPageHeight = footerBottomLineY + 30.0;
+      pageFormat = PdfPageFormat(TourismLayoutConfig.pageWidth, dynamicPageHeight);
+    } else if (template.pageFormat == 'Letter') {
       pageFormat = PdfPageFormat.letter;
     } else if (template.pageFormat == 'Custom') {
       pageFormat = PdfPageFormat(template.pageWidth, template.pageHeight);
@@ -98,8 +110,6 @@ class PdfGeneratorService {
     // 6. Build sections in sorted layout sequence
     final visibleSections = template.sections.where((s) => s.isVisible).toList()
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-
-    final isTourism = template.id == 'tourism';
     final pageTheme = isTourism
         ? pw.ThemeData.withFont(
             base: pw.Font.times(),
@@ -180,6 +190,19 @@ class PdfGeneratorService {
     required NumberFormat currencyFmt,
     required Map<String, dynamic> fieldValues,
   }) {
+    final double tableHeaderHeight = 20.0;
+    final double tableRowHeight = 20.0;
+    final double tableHeight = tableHeaderHeight + (items.length * tableRowHeight);
+
+    final double totalsBoxY = 275.0 + tableHeight + 10.0;
+    final double wordsBoxY = totalsBoxY + 90.0 + 10.0;
+    final double footerTopLineY = wordsBoxY + 20.0 + 10.0;
+    final double footerBottomLineY = footerTopLineY + 125.0;
+    final double sigUnderlineY = footerTopLineY + 87.0; // 642.0 - 555.0 = 87.0
+    final double sigBoxY = footerTopLineY + 43.0; // 598.0 - 555.0 = 43.0
+    final double signatoryTitleY = footerTopLineY + 93.0; // 648.0 - 555.0 = 93.0
+    final double dynamicPageHeight = footerBottomLineY + 30.0;
+
     final cName = (fieldValues['company_name'] ?? company.name).toString().toUpperCase();
     final tagline = (fieldValues['company_tagline'] ?? 'TOURS & TRAVELS | CAR RENTAL | TRANSPORT SOLUTIONS').toString().toUpperCase();
     final phone = fieldValues['company_phone'] ?? company.contactNumber;
@@ -308,7 +331,7 @@ class PdfGeneratorService {
     }
 
     pw.Widget _totalsRow(String label, String value, int rowIndex, {bool isBold = false, bool isTotalAmount = false}) {
-      final double top = TourismLayoutConfig.totalsBoxY + (rowIndex * TourismLayoutConfig.totalsRowHeight);
+      final double top = totalsBoxY + (rowIndex * TourismLayoutConfig.totalsRowHeight);
       
       return pw.Positioned(
         left: TourismLayoutConfig.totalsBoxX * scale,
@@ -372,12 +395,15 @@ class PdfGeneratorService {
     }
 
     pw.Widget _cellBody(String text, {pw.TextAlign align = pw.TextAlign.left}) {
-      return pw.Padding(
-        padding: pw.EdgeInsets.symmetric(horizontal: 4 * scale, vertical: 3.5 * scale),
+      return pw.Container(
+        height: 20.0 * scale,
+        alignment: align == pw.TextAlign.center
+            ? pw.Alignment.center
+            : (align == pw.TextAlign.right ? pw.Alignment.centerRight : pw.Alignment.centerLeft),
+        padding: pw.EdgeInsets.symmetric(horizontal: 4 * scale),
         child: pw.Text(
           text,
           style: pw.TextStyle(fontSize: 7.5 * scale),
-          textAlign: align,
         ),
       );
     }
@@ -533,7 +559,7 @@ class PdfGeneratorService {
       // Totals box outer dashed border
       pw.Positioned(
         left: TourismLayoutConfig.totalsBoxX * scale,
-        top: TourismLayoutConfig.totalsBoxY * scale,
+        top: totalsBoxY * scale,
         child: pw.Container(
           width: TourismLayoutConfig.totalsBoxWidth * scale,
           height: TourismLayoutConfig.totalsBoxHeight * scale,
@@ -545,7 +571,7 @@ class PdfGeneratorService {
       // Inside vertical dashed separator
       pw.Positioned(
         left: TourismLayoutConfig.totalsBoxDividerX * scale,
-        top: TourismLayoutConfig.totalsBoxY * scale,
+        top: totalsBoxY * scale,
         child: pw.Container(
           width: 0.5 * scale,
           height: TourismLayoutConfig.totalsBoxHeight * scale,
@@ -558,7 +584,7 @@ class PdfGeneratorService {
       ),
     ]);
     for (int i = 1; i < 6; i++) {
-      final double y = TourismLayoutConfig.totalsBoxY + (i * TourismLayoutConfig.totalsRowHeight);
+      final double y = totalsBoxY + (i * TourismLayoutConfig.totalsRowHeight);
       decorativeLines.add(
         pw.Positioned(
           left: TourismLayoutConfig.totalsBoxX * scale,
@@ -579,7 +605,7 @@ class PdfGeneratorService {
     decorativeLines.add(
       pw.Positioned(
         left: TourismLayoutConfig.wordsBoxX * scale,
-        top: TourismLayoutConfig.wordsBoxY * scale,
+        top: wordsBoxY * scale,
         child: pw.Container(
           width: TourismLayoutConfig.wordsBoxWidth * scale,
           height: TourismLayoutConfig.wordsBoxHeight * scale,
@@ -595,7 +621,7 @@ class PdfGeneratorService {
       // Top dashed footer line
       pw.Positioned(
         left: TourismLayoutConfig.leftMargin * scale,
-        top: TourismLayoutConfig.footerTopLineY * scale,
+        top: footerTopLineY * scale,
         child: pw.Container(
           width: TourismLayoutConfig.contentWidth * scale,
           decoration: const pw.BoxDecoration(
@@ -608,7 +634,7 @@ class PdfGeneratorService {
       // Bottom dashed footer line
       pw.Positioned(
         left: TourismLayoutConfig.leftMargin * scale,
-        top: TourismLayoutConfig.footerBottomLineY * scale,
+        top: footerBottomLineY * scale,
         child: pw.Container(
           width: TourismLayoutConfig.contentWidth * scale,
           decoration: const pw.BoxDecoration(
@@ -621,27 +647,27 @@ class PdfGeneratorService {
       // Green vertical divider 1
       pw.Positioned(
         left: TourismLayoutConfig.footerDivider1X * scale,
-        top: TourismLayoutConfig.footerTopLineY * scale,
+        top: footerTopLineY * scale,
         child: pw.Container(
           width: 1.0 * scale,
-          height: (TourismLayoutConfig.footerBottomLineY - TourismLayoutConfig.footerTopLineY) * scale,
+          height: (footerBottomLineY - footerTopLineY) * scale,
           color: PdfColor.fromInt(0xFF499F34),
         ),
       ),
       // Green vertical divider 2
       pw.Positioned(
         left: TourismLayoutConfig.footerDivider2X * scale,
-        top: TourismLayoutConfig.footerTopLineY * scale,
+        top: footerTopLineY * scale,
         child: pw.Container(
           width: 1.0 * scale,
-          height: (TourismLayoutConfig.footerBottomLineY - TourismLayoutConfig.footerTopLineY) * scale,
+          height: (footerBottomLineY - footerTopLineY) * scale,
           color: PdfColor.fromInt(0xFF499F34),
         ),
       ),
       // Signature dotted line
       pw.Positioned(
         left: 395 * scale,
-        top: TourismLayoutConfig.sigUnderlineY * scale,
+        top: sigUnderlineY * scale,
         child: pw.Container(
           width: 171 * scale,
           decoration: const pw.BoxDecoration(
@@ -655,7 +681,7 @@ class PdfGeneratorService {
 
     return pw.SizedBox(
       width: TourismLayoutConfig.pageWidth * scale,
-      height: TourismLayoutConfig.pageHeight * scale,
+      height: dynamicPageHeight * scale,
       child: pw.Stack(
         children: [
           // 1. Render all background lines & borders
@@ -776,7 +802,7 @@ class PdfGeneratorService {
             posX: TourismLayoutConfig.leftMargin,
             posY: TourismLayoutConfig.tableStartY,
             width: TourismLayoutConfig.contentWidth,
-            height: (TourismLayoutConfig.pageHeight - TourismLayoutConfig.tableStartY) * scale,
+            height: tableHeight * scale,
             child: pw.Table(
               border: pw.TableBorder.all(color: PdfColors.black, width: 0.8 * scale),
               columnWidths: Map.fromIterables(
@@ -786,12 +812,13 @@ class PdfGeneratorService {
               children: [
                 pw.TableRow(
                   decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF499F34)),
-                  children: TourismLayoutConfig.tableColumnLabels.map((lbl) => pw.Padding(
-                    padding: pw.EdgeInsets.symmetric(vertical: 4 * scale, horizontal: 1 * scale),
+                  children: TourismLayoutConfig.tableColumnLabels.map((lbl) => pw.Container(
+                    height: 20.0 * scale,
+                    alignment: pw.Alignment.center,
+                    padding: pw.EdgeInsets.symmetric(horizontal: 1 * scale),
                     child: pw.Text(
                       lbl,
                       style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 7.5 * scale),
-                      textAlign: pw.TextAlign.center,
                     ),
                   )).toList(),
                 ),
@@ -826,7 +853,7 @@ class PdfGeneratorService {
           // Amount in Words
           _positionedField(
             posX: TourismLayoutConfig.wordsBoxX,
-            posY: TourismLayoutConfig.wordsBoxY,
+            posY: wordsBoxY,
             width: TourismLayoutConfig.wordsBoxWidth,
             height: TourismLayoutConfig.wordsBoxHeight,
             child: pw.Padding(
@@ -840,14 +867,14 @@ class PdfGeneratorService {
 
           // Footer Terms
           _positionedField(
-            posX: 28, posY: 562, width: 170, height: 10,
+            posX: 28, posY: footerTopLineY + 7.0, width: 170, height: 10,
             child: pw.Text(
               "TERM & CONDITION 8",
               style: pw.TextStyle(fontSize: 8.0 * scale, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF499F34)),
             ),
           ),
           _positionedField(
-            posX: 28, posY: 574, width: 170, height: 75,
+            posX: 28, posY: footerTopLineY + 19.0, width: 170, height: 75,
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: termsList.map((t) => pw.Padding(
@@ -859,20 +886,20 @@ class PdfGeneratorService {
 
           // Footer Bank details
           _positionedField(
-            posX: 218, posY: 562, width: 155, height: 10,
+            posX: 218, posY: footerTopLineY + 7.0, width: 155, height: 10,
             child: pw.Text(
               "BANK DETAIL 8",
               style: pw.TextStyle(fontSize: 8.0 * scale, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF499F34)),
             ),
           ),
-          _bankItemRow("Aooount Name", bankAccountName.toString(), 574),
-          _bankItemRow("Bank Name", bankName.toString(), 585),
-          _bankItemRow("Aooount No.", bankAccountNo.toString(), 596),
-          _bankItemRow("IFSC Code", bankIfsc.toString(), 607),
+          _bankItemRow("Aooount Name", bankAccountName.toString(), footerTopLineY + 19.0),
+          _bankItemRow("Bank Name", bankName.toString(), footerTopLineY + 30.0),
+          _bankItemRow("Aooount No.", bankAccountNo.toString(), footerTopLineY + 41.0),
+          _bankItemRow("IFSC Code", bankIfsc.toString(), footerTopLineY + 52.0),
 
           // Footer Signatory
           _positionedField(
-            posX: 388, posY: 562, width: 185, height: 10,
+            posX: 388, posY: footerTopLineY + 7.0, width: 185, height: 10,
             child: pw.Text(
               "FOR $cName",
               style: pw.TextStyle(fontSize: 7.5 * scale, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF0B3B60)),
@@ -880,7 +907,7 @@ class PdfGeneratorService {
             ),
           ),
           _positionedField(
-            posX: 388, posY: 574, width: 185, height: 20,
+            posX: 388, posY: footerTopLineY + 19.0, width: 185, height: 20,
             child: pw.Text(
               "This is a computer-generated invoice.\nSubject to applicable laws of India.",
               style: pw.TextStyle(fontSize: 6.0 * scale, color: PdfColor.fromInt(0xFF555555)),
@@ -891,7 +918,7 @@ class PdfGeneratorService {
           if (sigImage != null)
             _positionedField(
               posX: TourismLayoutConfig.sigBoxX,
-              posY: TourismLayoutConfig.sigBoxY,
+              posY: sigBoxY,
               width: TourismLayoutConfig.sigBoxWidth,
               height: TourismLayoutConfig.sigBoxHeight,
               child: pw.Image(sigImage),
@@ -899,7 +926,7 @@ class PdfGeneratorService {
           else
             _positionedField(
               posX: TourismLayoutConfig.sigBoxX,
-              posY: TourismLayoutConfig.sigBoxY,
+              posY: sigBoxY,
               width: TourismLayoutConfig.sigBoxWidth,
               height: TourismLayoutConfig.sigBoxHeight,
               child: pw.Center(
@@ -916,7 +943,7 @@ class PdfGeneratorService {
             ),
 
           _positionedField(
-            posX: 388, posY: 648, width: 185, height: 10,
+            posX: 388, posY: signatoryTitleY, width: 185, height: 10,
             child: pw.Text(
               signatoryTitle.toString().toUpperCase(),
               style: pw.TextStyle(fontSize: 7.0 * scale, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF0B3B60)),
