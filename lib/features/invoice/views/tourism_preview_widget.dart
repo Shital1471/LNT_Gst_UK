@@ -82,6 +82,27 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
     final double gstPercentage = (invoice.subTotal == 0) ? 0.0 : ((invoice.cgst + invoice.sgst) / invoice.subTotal * 100);
     final gstHalfRate = gstPercentage / 2;
 
+    // Calculate dynamic Y coordinates: Totals and Words boxes follow the table dynamically,
+    // while the footer remains anchored to the bottom.
+    final double tableHeaderHeight = 20.0;
+    final double tableRowHeight = 20.0;
+    final double tableHeight = tableHeaderHeight + items.length * tableRowHeight;
+    final double tableEndY = TourismLayoutConfig.tableStartY + tableHeight;
+
+    double totalsBoxY = tableEndY + 15.0;
+    final double totalsBoxHeight = TourismLayoutConfig.totalsBoxHeight;
+    final double totalsBoxEndY = totalsBoxY + totalsBoxHeight;
+
+    double wordsBoxY = totalsBoxEndY + 10.0;
+    final double wordsBoxHeight = TourismLayoutConfig.wordsBoxHeight;
+    final double wordsBoxEndY = wordsBoxY + wordsBoxHeight;
+
+    double footerTopLineY = wordsBoxEndY + 10.0;
+    final double footerBottomLineY = footerTopLineY + 125.0; // 680 - 555 = 125
+    final double sigBoxY = footerTopLineY + 43.0; // 598 - 555 = 43
+    final double sigUnderlineY = footerTopLineY + 87.0; // 642 - 555 = 87
+    final double signatoryTitleY = footerTopLineY + 93.0; // 648 - 555 = 93
+
     return Center(
       child: Card(
         elevation: isDesigner ? 2 : 8,
@@ -97,7 +118,14 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
               // 1. Background borders/dividers drawn by CustomPainter
               Positioned.fill(
                 child: CustomPaint(
-                  painter: TourismInvoiceBackgroundPainter(scale: scale),
+                  painter: TourismInvoiceBackgroundPainter(
+                    scale: scale,
+                    totalsBoxY: totalsBoxY,
+                    wordsBoxY: wordsBoxY,
+                    footerTopLineY: footerTopLineY,
+                    footerBottomLineY: footerBottomLineY,
+                    sigUnderlineY: sigUnderlineY,
+                  ),
                 ),
               ),
 
@@ -294,19 +322,19 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
               ),
 
               // 4. Totals Block (Right side)
-              _totalsRow("Sub Total", simpleCurrencyFmt.format(invoice.subTotal), 0, 'tax_summary'),
-              _totalsRow("CGST @ ${gstHalfRate.toStringAsFixed(gstHalfRate % 1 == 0 ? 0 : 1)}%", simpleCurrencyFmt.format(invoice.cgst), 1, 'tax_summary'),
-              _totalsRow("SGST @ ${gstHalfRate.toStringAsFixed(gstHalfRate % 1 == 0 ? 0 : 1)}%", simpleCurrencyFmt.format(invoice.sgst), 2, 'tax_summary'),
-              _totalsRow("Total Amount", simpleCurrencyFmt.format(invoice.grandTotal), 3, 'tax_summary', isTotalAmount: true),
-              _totalsRow("Advance Payment Received", simpleCurrencyFmt.format(invoice.advancePaid), 4, 'tax_summary'),
-              _totalsRow("Amount To Be Paid", simpleCurrencyFmt.format(invoice.grandTotal - invoice.advancePaid), 5, 'tax_summary', isBold: true),
+              _totalsRow("Sub Total", simpleCurrencyFmt.format(invoice.subTotal), 0, 'tax_summary', totalsBoxY),
+              _totalsRow("CGST @ ${gstHalfRate.toStringAsFixed(gstHalfRate % 1 == 0 ? 0 : 1)}%", simpleCurrencyFmt.format(invoice.cgst), 1, 'tax_summary', totalsBoxY),
+              _totalsRow("SGST @ ${gstHalfRate.toStringAsFixed(gstHalfRate % 1 == 0 ? 0 : 1)}%", simpleCurrencyFmt.format(invoice.sgst), 2, 'tax_summary', totalsBoxY),
+              _totalsRow("Total Amount", simpleCurrencyFmt.format(invoice.grandTotal), 3, 'tax_summary', totalsBoxY, isTotalAmount: true),
+              _totalsRow("Advance Payment Received", simpleCurrencyFmt.format(invoice.advancePaid), 4, 'tax_summary', totalsBoxY),
+              _totalsRow("Amount To Be Paid", simpleCurrencyFmt.format(invoice.grandTotal - invoice.advancePaid), 5, 'tax_summary', totalsBoxY, isBold: true),
 
               // Amount in words box (Left side, full width)
               _positionedField(
                 id: 'amount_paid_in_words',
                 sectionId: 'tax_summary',
                 posX: TourismLayoutConfig.wordsBoxX,
-                posY: TourismLayoutConfig.wordsBoxY,
+                posY: wordsBoxY,
                 width: TourismLayoutConfig.wordsBoxWidth,
                 height: TourismLayoutConfig.wordsBoxHeight,
                 child: Padding(
@@ -323,7 +351,7 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
               _positionedField(
                 id: 'terms_title',
                 sectionId: 'terms_conditions',
-                posX: 28, posY: 562, width: 170, height: 10,
+                posX: 28, posY: footerTopLineY + 7, width: 170, height: 10,
                 child: Text(
                   "TERM & CONDITION 8",
                   style: TextStyle(fontSize: 8.0 * scale, fontWeight: FontWeight.bold, color: const Color(0xFF499F34), fontFamily: 'Times New Roman'),
@@ -332,7 +360,7 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
               _positionedField(
                 id: 'terms_text',
                 sectionId: 'terms_conditions',
-                posX: 28, posY: 574, width: 170, height: 75,
+                posX: 28, posY: footerTopLineY + 19, width: 170, height: 75,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: termsList.map((t) => Padding(
@@ -346,22 +374,22 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
               _positionedField(
                 id: 'bank_title',
                 sectionId: 'payment_info',
-                posX: 218, posY: 562, width: 155, height: 10,
+                posX: 218, posY: footerTopLineY + 7, width: 155, height: 10,
                 child: Text(
                   "BANK DETAIL 8",
                   style: TextStyle(fontSize: 8.0 * scale, fontWeight: FontWeight.bold, color: const Color(0xFF499F34), fontFamily: 'Times New Roman'),
                 ),
               ),
-              _bankItemRow("Aooount Name", bankAccountName.toString(), 574, 'bank_account_name'),
-              _bankItemRow("Bank Name", bankName.toString(), 585, 'bank_name'),
-              _bankItemRow("Aooount No.", bankAccountNo.toString(), 596, 'bank_account_no'),
-              _bankItemRow("IFSC Code", bankIfsc.toString(), 607, 'bank_ifsc'),
+              _bankItemRow("Aooount Name", bankAccountName.toString(), footerTopLineY + 19, 'bank_account_name'),
+              _bankItemRow("Bank Name", bankName.toString(), footerTopLineY + 30, 'bank_name'),
+              _bankItemRow("Aooount No.", bankAccountNo.toString(), footerTopLineY + 41, 'bank_account_no'),
+              _bankItemRow("IFSC Code", bankIfsc.toString(), footerTopLineY + 52, 'bank_ifsc'),
 
               // Column 3: Signatory
               _positionedField(
                 id: 'signatory_company',
                 sectionId: 'signature',
-                posX: 388, posY: 562, width: 185, height: 10,
+                posX: 388, posY: footerTopLineY + 7, width: 185, height: 10,
                 child: Text(
                   "FOR $cName",
                   style: TextStyle(fontSize: 7.5 * scale, fontWeight: FontWeight.bold, color: const Color(0xFF0B3B60), fontFamily: 'Times New Roman'),
@@ -370,7 +398,7 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
               ),
               Positioned(
                 left: 388 * scale,
-                top: 574 * scale,
+                top: (footerTopLineY + 19) * scale,
                 width: 185 * scale,
                 child: Text(
                   "This is a computer-generated invoice.\nSubject to applicable laws of India.",
@@ -383,7 +411,7 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
               if (company.signaturePath != null && File(company.signaturePath!).existsSync())
                 Positioned(
                   left: TourismLayoutConfig.sigBoxX * scale,
-                  top: TourismLayoutConfig.sigBoxY * scale,
+                  top: sigBoxY * scale,
                   width: TourismLayoutConfig.sigBoxWidth * scale,
                   height: TourismLayoutConfig.sigBoxHeight * scale,
                   child: Image.file(
@@ -396,7 +424,7 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
                   id: 'signature_fallback',
                   sectionId: 'signature',
                   posX: TourismLayoutConfig.sigBoxX,
-                  posY: TourismLayoutConfig.sigBoxY,
+                  posY: sigBoxY,
                   width: TourismLayoutConfig.sigBoxWidth,
                   height: TourismLayoutConfig.sigBoxHeight,
                   child: Center(
@@ -416,7 +444,7 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
               _positionedField(
                 id: 'signatory_title',
                 sectionId: 'signature',
-                posX: 388, posY: 648, width: 185, height: 10,
+                posX: 388, posY: signatoryTitleY, width: 185, height: 10,
                 child: Text(
                   signatoryTitle.toString().toUpperCase(),
                   style: TextStyle(fontSize: 7.0 * scale, fontWeight: FontWeight.bold, color: const Color(0xFF0B3B60), fontFamily: 'Times New Roman'),
@@ -550,8 +578,8 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
     );
   }
 
-  Widget _totalsRow(String label, String value, int rowIndex, String sectionId, {bool isBold = false, bool isTotalAmount = false}) {
-    final double top = TourismLayoutConfig.totalsBoxY + (rowIndex * TourismLayoutConfig.totalsRowHeight);
+  Widget _totalsRow(String label, String value, int rowIndex, String sectionId, double totalsBoxY, {bool isBold = false, bool isTotalAmount = false}) {
+    final double top = totalsBoxY + (rowIndex * TourismLayoutConfig.totalsRowHeight);
     
     return Positioned(
       left: TourismLayoutConfig.totalsBoxX * scale,
@@ -649,8 +677,20 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
 
 class TourismInvoiceBackgroundPainter extends CustomPainter {
   final double scale;
+  final double totalsBoxY;
+  final double wordsBoxY;
+  final double footerTopLineY;
+  final double footerBottomLineY;
+  final double sigUnderlineY;
 
-  TourismInvoiceBackgroundPainter({required this.scale});
+  TourismInvoiceBackgroundPainter({
+    required this.scale,
+    required this.totalsBoxY,
+    required this.wordsBoxY,
+    required this.footerTopLineY,
+    required this.footerBottomLineY,
+    required this.sigUnderlineY,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -815,36 +855,36 @@ class TourismInvoiceBackgroundPainter extends CustomPainter {
     // 4. Totals Block Outer Dashed Box
     drawDashLine(
       TourismLayoutConfig.totalsBoxX * scale,
-      TourismLayoutConfig.totalsBoxY * scale,
+      totalsBoxY * scale,
       (TourismLayoutConfig.totalsBoxX + TourismLayoutConfig.totalsBoxWidth) * scale,
-      TourismLayoutConfig.totalsBoxY * scale,
+      totalsBoxY * scale,
       solidBlack,
     );
     drawDashLine(
       TourismLayoutConfig.totalsBoxX * scale,
-      (TourismLayoutConfig.totalsBoxY + TourismLayoutConfig.totalsBoxHeight) * scale,
+      (totalsBoxY + TourismLayoutConfig.totalsBoxHeight) * scale,
       (TourismLayoutConfig.totalsBoxX + TourismLayoutConfig.totalsBoxWidth) * scale,
-      (TourismLayoutConfig.totalsBoxY + TourismLayoutConfig.totalsBoxHeight) * scale,
+      (totalsBoxY + TourismLayoutConfig.totalsBoxHeight) * scale,
       solidBlack,
     );
     drawDashLine(
       TourismLayoutConfig.totalsBoxX * scale,
-      TourismLayoutConfig.totalsBoxY * scale,
+      totalsBoxY * scale,
       TourismLayoutConfig.totalsBoxX * scale,
-      (TourismLayoutConfig.totalsBoxY + TourismLayoutConfig.totalsBoxHeight) * scale,
+      (totalsBoxY + TourismLayoutConfig.totalsBoxHeight) * scale,
       solidBlack,
     );
     drawDashLine(
       (TourismLayoutConfig.totalsBoxX + TourismLayoutConfig.totalsBoxWidth) * scale,
-      TourismLayoutConfig.totalsBoxY * scale,
+      totalsBoxY * scale,
       (TourismLayoutConfig.totalsBoxX + TourismLayoutConfig.totalsBoxWidth) * scale,
-      (TourismLayoutConfig.totalsBoxY + TourismLayoutConfig.totalsBoxHeight) * scale,
+      (totalsBoxY + TourismLayoutConfig.totalsBoxHeight) * scale,
       solidBlack,
     );
 
     // Totals Box Inside horizontal lines
     for (int i = 1; i < 6; i++) {
-      final double y = TourismLayoutConfig.totalsBoxY + (i * TourismLayoutConfig.totalsRowHeight);
+      final double y = totalsBoxY + (i * TourismLayoutConfig.totalsRowHeight);
       drawDashLine(
         TourismLayoutConfig.totalsBoxX * scale,
         y * scale,
@@ -856,76 +896,76 @@ class TourismInvoiceBackgroundPainter extends CustomPainter {
     // Totals Box Inside vertical divider
     drawDashLine(
       TourismLayoutConfig.totalsBoxDividerX * scale,
-      TourismLayoutConfig.totalsBoxY * scale,
+      totalsBoxY * scale,
       TourismLayoutConfig.totalsBoxDividerX * scale,
-      (TourismLayoutConfig.totalsBoxY + TourismLayoutConfig.totalsBoxHeight) * scale,
+      (totalsBoxY + TourismLayoutConfig.totalsBoxHeight) * scale,
       dashPaint..strokeWidth = 0.4 * scale,
     );
 
     // 5. Amount in words dashed box
     drawDashLine(
       TourismLayoutConfig.wordsBoxX * scale,
-      TourismLayoutConfig.wordsBoxY * scale,
+      wordsBoxY * scale,
       (TourismLayoutConfig.wordsBoxX + TourismLayoutConfig.wordsBoxWidth) * scale,
-      TourismLayoutConfig.wordsBoxY * scale,
+      wordsBoxY * scale,
       solidBlack,
     );
     drawDashLine(
       TourismLayoutConfig.wordsBoxX * scale,
-      (TourismLayoutConfig.wordsBoxY + TourismLayoutConfig.wordsBoxHeight) * scale,
+      (wordsBoxY + TourismLayoutConfig.wordsBoxHeight) * scale,
       (TourismLayoutConfig.wordsBoxX + TourismLayoutConfig.wordsBoxWidth) * scale,
-      (TourismLayoutConfig.wordsBoxY + TourismLayoutConfig.wordsBoxHeight) * scale,
+      (wordsBoxY + TourismLayoutConfig.wordsBoxHeight) * scale,
       solidBlack,
     );
     drawDashLine(
       TourismLayoutConfig.wordsBoxX * scale,
-      TourismLayoutConfig.wordsBoxY * scale,
+      wordsBoxY * scale,
       TourismLayoutConfig.wordsBoxX * scale,
-      (TourismLayoutConfig.wordsBoxY + TourismLayoutConfig.wordsBoxHeight) * scale,
+      (wordsBoxY + TourismLayoutConfig.wordsBoxHeight) * scale,
       solidBlack,
     );
     drawDashLine(
       (TourismLayoutConfig.wordsBoxX + TourismLayoutConfig.wordsBoxWidth) * scale,
-      TourismLayoutConfig.wordsBoxY * scale,
+      wordsBoxY * scale,
       (TourismLayoutConfig.wordsBoxX + TourismLayoutConfig.wordsBoxWidth) * scale,
-      (TourismLayoutConfig.wordsBoxY + TourismLayoutConfig.wordsBoxHeight) * scale,
+      (wordsBoxY + TourismLayoutConfig.wordsBoxHeight) * scale,
       solidBlack,
     );
 
     // 6. Footer Section Top/Bottom dashed lines
     drawDashLine(
       TourismLayoutConfig.leftMargin * scale,
-      TourismLayoutConfig.footerTopLineY * scale,
+      footerTopLineY * scale,
       (TourismLayoutConfig.pageWidth - TourismLayoutConfig.rightMargin) * scale,
-      TourismLayoutConfig.footerTopLineY * scale,
+      footerTopLineY * scale,
       solidBlack,
     );
     drawDashLine(
       TourismLayoutConfig.leftMargin * scale,
-      TourismLayoutConfig.footerBottomLineY * scale,
+      footerBottomLineY * scale,
       (TourismLayoutConfig.pageWidth - TourismLayoutConfig.rightMargin) * scale,
-      TourismLayoutConfig.footerBottomLineY * scale,
+      footerBottomLineY * scale,
       solidBlack,
     );
 
     // Footer Columns Green solid dividers
     canvas.drawLine(
-      Offset(TourismLayoutConfig.footerDivider1X * scale, TourismLayoutConfig.footerTopLineY * scale),
-      Offset(TourismLayoutConfig.footerDivider1X * scale, TourismLayoutConfig.footerBottomLineY * scale),
+      Offset(TourismLayoutConfig.footerDivider1X * scale, footerTopLineY * scale),
+      Offset(TourismLayoutConfig.footerDivider1X * scale, footerBottomLineY * scale),
       solidGreen..strokeWidth = 1.0 * scale,
     );
     canvas.drawLine(
-      Offset(TourismLayoutConfig.footerDivider2X * scale, TourismLayoutConfig.footerTopLineY * scale),
-      Offset(TourismLayoutConfig.footerDivider2X * scale, TourismLayoutConfig.footerBottomLineY * scale),
+      Offset(TourismLayoutConfig.footerDivider2X * scale, footerTopLineY * scale),
+      Offset(TourismLayoutConfig.footerDivider2X * scale, footerBottomLineY * scale),
       solidGreen..strokeWidth = 1.0 * scale,
     );
 
     // Signature label dotted separator
     drawDotLine(
       395 * scale,
-      TourismLayoutConfig.sigUnderlineY * scale,
+      sigUnderlineY * scale,
       566 * scale,
-      TourismLayoutConfig.sigUnderlineY * scale,
+      sigUnderlineY * scale,
       fieldDotPaint..color = Colors.grey.shade500,
     );
   }

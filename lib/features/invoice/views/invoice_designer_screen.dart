@@ -209,20 +209,7 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Dynamic Sections flow
-            Expanded(
-              child: ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: visibleSections.length,
-                itemBuilder: (context, idx) {
-                  final sec = visibleSections[idx];
-                  return _buildCanvasSection(template, sec, scale);
-                },
-              ),
-            ),
-          ],
+          children: visibleSections.map((sec) => _buildCanvasSection(template, sec, scale)).toList(),
         ),
       ),
     );

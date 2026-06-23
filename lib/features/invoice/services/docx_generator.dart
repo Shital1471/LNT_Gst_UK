@@ -578,6 +578,7 @@ class DocxGeneratorService {
       );
 
       document.addTable(totalsLayoutTable);
+
       document.p(''); // Spacer
 
       // -- 5. Footer Block (Terms on Left, Bank in Middle, Signatory on Right) --
@@ -765,7 +766,9 @@ class DocxGeneratorService {
       final visibleSections = template.sections.where((s) => s.isVisible).toList()
         ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
+      bool spacerInserted = false;
       for (final sec in visibleSections) {
+        // Footer sections will flow naturally without spacer paragraphs.
         if (sec.id == 'company_details') {
           final cName = (fieldValues['company_name'] ?? company.name).toString().toUpperCase();
           final cAddr = fieldValues['company_address'] ?? company.address;
