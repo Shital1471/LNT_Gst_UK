@@ -982,13 +982,31 @@ class DocxGeneratorService {
       document.p(''); // Spacer
 
       // -- 5. Footer Block (Ordered columns horizontally) --
-      final visibleFooters =
-          adjustedTemplate.footerSections.where((f) => f.isVisible).toList()
-            ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+      final visibleFooters = adjustedTemplate.footerSections.where((f) {
+        if (!f.isVisible) return false;
+        if (f.id == 'terms_conditions') {
+          return adjustedTemplate.sections.firstWhere((s) => s.id == 'terms_conditions', orElse: () => SectionSchema(id: 'terms_conditions', title: '', orderIndex: 0, fields: [])).isVisible;
+        }
+        if (f.id == 'bank_details') {
+          return adjustedTemplate.sections.firstWhere((s) => s.id == 'payment_info', orElse: () => SectionSchema(id: 'payment_info', title: '', orderIndex: 0, fields: [])).isVisible;
+        }
+        if (f.id == 'signature') {
+          return adjustedTemplate.sections.firstWhere((s) => s.id == 'signature', orElse: () => SectionSchema(id: 'signature', title: '', orderIndex: 0, fields: [])).isVisible;
+        }
+        return true;
+      }).toList()
+        ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+
+      double sum = visibleFooters.fold(0.0, (prev, f) => prev + f.widthPercent);
+      if (sum == 0.0) sum = 1.0;
+      
+      final normalizedFooters = visibleFooters.map((f) => f.copyWith(
+        widthPercent: (f.widthPercent / sum) * 100.0
+      )).toList();
 
       final List<int> footerColWidths = [];
-      for (int i = 0; i < visibleFooters.length; i++) {
-        final fSec = visibleFooters[i];
+      for (int i = 0; i < normalizedFooters.length; i++) {
+        final fSec = normalizedFooters[i];
         // Calculate cell width based on width percent
         final colTwips = (totalWidthTwips * (fSec.widthPercent / 100)).toInt();
         footerColWidths.add(colTwips);
@@ -996,8 +1014,8 @@ class DocxGeneratorService {
 
       final List<DocxTableCell> footerCells = [];
 
-      for (int i = 0; i < visibleFooters.length; i++) {
-        final fSec = visibleFooters[i];
+      for (int i = 0; i < normalizedFooters.length; i++) {
+        final fSec = normalizedFooters[i];
         final colW = footerColWidths[i];
 
         final cellParagraphs = <DocxParagraph>[];

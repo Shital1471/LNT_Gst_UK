@@ -37,7 +37,7 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     // Enforce layout width protection on table columns
     final adjustedTemplate = template.adjustColumnWidths();
-    final layout = TourismLayoutConfig(adjustedTemplate, items.length);
+    final layout = TourismLayoutConfig(adjustedTemplate, items.length, fieldValues);
 
     final double width = layout.pageWidth * scale;
     final double height = layout.pageHeight * scale;
@@ -93,8 +93,21 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
     final signatoryTitle = fieldValues['signatory_title'] ?? sigField.defaultValue?.toString() ?? 'AUTHORISED SIGNATORY';
 
     // Calculate footer section horizontal positions
-    final visibleFooters = adjustedTemplate.footerSections.where((f) => f.isVisible).toList()
+    final visibleFooters = adjustedTemplate.footerSections.where((f) {
+      if (!f.isVisible) return false;
+      if (f.id == 'terms_conditions') return termsSec.isVisible;
+      if (f.id == 'bank_details') return bankSec.isVisible;
+      if (f.id == 'signature') return sigSec.isVisible;
+      return true;
+    }).toList()
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+
+    double sum = visibleFooters.fold(0.0, (prev, f) => prev + f.widthPercent);
+    if (sum == 0.0) sum = 1.0;
+    
+    final normalizedFooters = visibleFooters.map((f) => f.copyWith(
+      widthPercent: (f.widthPercent / sum) * 100.0
+    )).toList();
 
     final double footerY = layout.footerTopLineY;
     final List<double> footerSeparators = [];
@@ -142,10 +155,10 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
                   return _positionedField(
                     id: f.id,
                     sectionId: 'company_details',
-                    posX: f.posX ?? 22.0,
-                    posY: f.posY ?? 32.0,
-                    width: f.width ?? 230.0,
-                    height: f.height ?? 12.0,
+                    posX: layout.getFieldX(f.id),
+                    posY: layout.getFieldY(f.id),
+                    width: layout.getFieldWidth(f.id),
+                    height: layout.getFieldHeight(f.id),
                     child: Text(
                       textVal,
                       style: TextStyle(
@@ -211,43 +224,37 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
                   final textVal = _formatValue(rawVal, f.valueType);
                   final isBold = f.id == 'company_pan' || f.id == 'company_gst_in' || f.id == 'invoice_number';
 
-                  return Positioned(
-                    left: (layout.invBoxX + 6) * scale,
-                    top: (f.posY ?? 62.0) * scale,
-                    width: (layout.invBoxWidth - 12) * scale,
-                    height: 10 * scale,
-                    child: GestureDetector(
-                      onTap: onTapField != null ? () => onTapField!('invoice_info', f.id) : null,
-                      child: Container(
-                        decoration: isDesigner && selectedFieldId == f.id
-                            ? BoxDecoration(border: Border.all(color: AppTheme.primaryGreen), color: AppTheme.primaryGreen.withOpacity(0.06))
-                            : null,
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 60 * scale,
-                              child: Text(
-                                f.label,
-                                style: TextStyle(
-                                  fontSize: 7.5 * scale,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF0B3B60),
-                                  fontFamily: 'Times New Roman',
-                                ),
-                              ),
+                  return _positionedField(
+                    id: f.id,
+                    sectionId: 'invoice_info',
+                    posX: layout.getFieldX(f.id),
+                    posY: layout.getFieldY(f.id),
+                    width: layout.getFieldWidth(f.id),
+                    height: layout.getFieldHeight(f.id),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 60 * scale,
+                          child: Text(
+                            f.label,
+                            style: TextStyle(
+                              fontSize: 7.5 * scale,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF0B3B60),
+                              fontFamily: 'Times New Roman',
                             ),
-                            Text(
-                              ":  $textVal",
-                              style: TextStyle(
-                                fontSize: 7.5 * scale,
-                                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-                                color: Colors.black87,
-                                fontFamily: 'Times New Roman',
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
+                        Text(
+                          ":  $textVal",
+                          style: TextStyle(
+                            fontSize: 7.5 * scale,
+                            fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+                            color: Colors.black87,
+                            fontFamily: 'Times New Roman',
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 }).toList(),
@@ -257,7 +264,7 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
                 _positionedField(
                   id: 'customer_details_title',
                   sectionId: 'customer_details',
-                  posX: 22,
+                  posX: layout.billToColumnUnderlineX1,
                   posY: layout.billToTopLineY + 4.0,
                   width: 100,
                   height: 12,
@@ -277,7 +284,17 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
                 ...customerFields.map((f) {
                   final rawVal = fieldValues[f.id] ?? f.defaultValue;
                   final textVal = _formatValue(rawVal, f.valueType);
-                  return _dottedFieldRow(f.label, textVal, f.posY ?? 172.0, f.id, 'customer_details', style: subsectionTitleStyle);
+                  return _dottedFieldRow(
+                    f.label,
+                    textVal,
+                    layout.getFieldX(f.id),
+                    layout.getFieldY(f.id),
+                    layout.getFieldWidth(f.id),
+                    layout.getFieldHeight(f.id),
+                    f.id,
+                    'customer_details',
+                    style: subsectionTitleStyle,
+                  );
                 }).toList(),
 
               // SERVICE DETAIL Title
@@ -305,7 +322,17 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
                 ...serviceFields.map((f) {
                   final rawVal = fieldValues[f.id] ?? f.defaultValue;
                   final textVal = _formatValue(rawVal, f.valueType);
-                  return _dottedFieldRow(f.label, textVal, f.posY ?? 172.0, f.id, 'service_details', isRightCol: true, style: subsectionTitleStyle, layout: layout);
+                  return _dottedFieldRow(
+                    f.label,
+                    textVal,
+                    layout.getFieldX(f.id),
+                    layout.getFieldY(f.id),
+                    layout.getFieldWidth(f.id),
+                    layout.getFieldHeight(f.id),
+                    f.id,
+                    'service_details',
+                    style: subsectionTitleStyle,
+                  );
                 }).toList(),
 
               // 3. Service Table
@@ -445,8 +472,8 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
               ],
 
               // 5. Dynamic Footer Sections Horizontal Layout
-              ...List.generate(visibleFooters.length, (index) {
-                final footerSec = visibleFooters[index];
+              ...List.generate(normalizedFooters.length, (index) {
+                final footerSec = normalizedFooters[index];
                 final widthPct = footerSec.widthPercent;
                 final colWidth = layout.contentWidth * (widthPct / 100);
                 final cellLeft = currentX;
@@ -646,17 +673,22 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
     );
   }
 
-  Widget _dottedFieldRow(String label, String value, double posY, String id, String sectionId, {bool isRightCol = false, required TextStyleSchema style, TourismLayoutConfig? layout}) {
-    final double left = isRightCol ? (layout?.serviceColumnUnderlineX1 ?? 300) : 22;
-    final double width = isRightCol
-        ? ((layout?.serviceColumnUnderlineX2 ?? 573.27) - left)
-        : ((layout?.billToColumnUnderlineX2 ?? 285) - left);
-
+  Widget _dottedFieldRow(
+    String label,
+    String value,
+    double posX,
+    double posY,
+    double width,
+    double height,
+    String id,
+    String sectionId, {
+    required TextStyleSchema style,
+  }) {
     return Positioned(
-      left: left * scale,
+      left: posX * scale,
       top: posY * scale,
       width: width * scale,
-      height: 12 * scale,
+      height: height * scale,
       child: GestureDetector(
         onTap: onTapField != null ? () => onTapField!(sectionId, id) : null,
         child: Container(
@@ -667,7 +699,7 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               SizedBox(
-                width: (isRightCol ? 90 : 75) * scale,
+                width: 75 * scale,
                 child: Text(
                   "$label :",
                   style: TextStyle(
@@ -901,8 +933,8 @@ class TourismInvoiceBackgroundPainter extends CustomPainter {
 
     // Dotted separators below fields
     for (final f in customerFields) {
-      if (f.id != 'customer_phone') { // don't draw underline under last field
-        final double underlineY = f.posY != null ? (f.posY! + (f.height ?? 10.0)) : 0.0;
+      if (f.id != 'customer_phone') { 
+        final double underlineY = layout.getFieldY(f.id) + layout.getFieldHeight(f.id);
         drawDashLine(
           layout.billToColumnUnderlineX1 * scale,
           underlineY * scale,
@@ -915,7 +947,7 @@ class TourismInvoiceBackgroundPainter extends CustomPainter {
 
     for (final f in serviceFields) {
       if (f.id != 'coordinator_name') {
-        final double underlineY = f.posY != null ? (f.posY! + (f.height ?? 10.0)) : 0.0;
+        final double underlineY = layout.getFieldY(f.id) + layout.getFieldHeight(f.id);
         drawDashLine(
           layout.serviceColumnUnderlineX1 * scale,
           underlineY * scale,

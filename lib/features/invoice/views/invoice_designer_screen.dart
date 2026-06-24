@@ -473,7 +473,7 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
   // --- Right Side Panels Tabs ---
 
   Widget _buildFieldsTab(InvoiceTemplateSchema template) {
-    final sections = template.sections;
+    final sections = [...template.sections]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -487,15 +487,31 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
                 'Sections & Fields',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue),
               ),
-              ElevatedButton.icon(
-                onPressed: () => _addCustomFieldDialog(template),
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('Add Field', style: TextStyle(fontSize: 12)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryGreen,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () => _addSectionDialog(template),
+                    icon: const Icon(Icons.add_box, size: 16),
+                    label: const Text('Add Section', style: TextStyle(fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.deepBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () => _addCustomFieldDialog(template),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Add Field', style: TextStyle(fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryGreen,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -548,10 +564,32 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
                         Switch(
                           value: sec.isVisible,
                           onChanged: (val) {
-                            final updated = template.sections.map((s) {
+                            final updatedSections = template.sections.map((s) {
                               return s.id == sec.id ? s.copyWith(isVisible: val) : s;
                             }).toList();
-                            _updateTemplateSections(template.copyWith(sections: updated));
+                            
+                            // Sync with footerSections
+                            var updatedFooters = template.footerSections;
+                            if (sec.id == 'terms_conditions') {
+                              updatedFooters = template.footerSections.map((f) {
+                                return f.id == 'terms_conditions' ? f.copyWith(isVisible: val) : f;
+                              }).toList();
+                            } else if (sec.id == 'payment_info') {
+                              updatedFooters = template.footerSections.map((f) {
+                                return f.id == 'bank_details' ? f.copyWith(isVisible: val) : f;
+                              }).toList();
+                            } else if (sec.id == 'signature') {
+                              updatedFooters = template.footerSections.map((f) {
+                                return f.id == 'signature' ? f.copyWith(isVisible: val) : f;
+                              }).toList();
+                            }
+
+                            _updateTemplateSections(
+                              template.copyWith(
+                                sections: updatedSections,
+                                footerSections: updatedFooters,
+                              ),
+                            );
                           },
                         ),
                       ],
@@ -569,7 +607,9 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
                           child: Column(
-                            children: sec.fields.map((field) {
+                            children: sec.fields.asMap().entries.map((entry) {
+                              final fIdx = entry.key;
+                              final field = entry.value;
                               final isFieldSelected = _selectedFieldId == field.id;
                               return Container(
                                 decoration: BoxDecoration(
@@ -595,6 +635,14 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.arrow_upward, size: 14),
+                                        onPressed: fIdx > 0 ? () => _moveField(template, sec.id, fIdx, -1) : null,
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.arrow_downward, size: 14),
+                                        onPressed: fIdx < sec.fields.length - 1 ? () => _moveField(template, sec.id, fIdx, 1) : null,
+                                      ),
                                       IconButton(
                                         icon: const Icon(Icons.edit, size: 14),
                                         tooltip: 'Rename Label',
@@ -1015,7 +1063,7 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
   }
 
   Widget _buildColumnsTab(InvoiceTemplateSchema template) {
-    final cols = template.tableColumns;
+    final cols = [...template.tableColumns]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -1200,7 +1248,7 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
   }
 
   Widget _buildFootersTab(InvoiceTemplateSchema template) {
-    final footers = template.footerSections;
+    final footers = [...template.footerSections]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -1253,10 +1301,32 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
                         Switch(
                           value: ft.isVisible,
                           onChanged: (val) {
-                            final updated = template.footerSections.map((f) {
+                            final updatedFooters = template.footerSections.map((f) {
                               return f.id == ft.id ? f.copyWith(isVisible: val) : f;
                             }).toList();
-                            _updateTemplateSections(template.copyWith(footerSections: updated));
+
+                            // Sync with sections
+                            var updatedSections = template.sections;
+                            if (ft.id == 'terms_conditions') {
+                              updatedSections = template.sections.map((s) {
+                                return s.id == 'terms_conditions' ? s.copyWith(isVisible: val) : s;
+                              }).toList();
+                            } else if (ft.id == 'bank_details') {
+                              updatedSections = template.sections.map((s) {
+                                return s.id == 'payment_info' ? s.copyWith(isVisible: val) : s;
+                              }).toList();
+                            } else if (ft.id == 'signature') {
+                              updatedSections = template.sections.map((s) {
+                                return s.id == 'signature' ? s.copyWith(isVisible: val) : s;
+                              }).toList();
+                            }
+
+                            _updateTemplateSections(
+                              template.copyWith(
+                                footerSections: updatedFooters,
+                                sections: updatedSections,
+                              ),
+                            );
                           },
                         ),
                       ],
@@ -1682,13 +1752,13 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
 
   void _moveSection(InvoiceTemplateSchema template, int index, int direction) {
     final newIndex = index + direction;
-    if (newIndex < 0 || newIndex >= template.sections.length) return;
+    final sortedList = [...template.sections]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    if (newIndex < 0 || newIndex >= sortedList.length) return;
 
-    final list = [...template.sections];
-    final item = list.removeAt(index);
-    list.insert(newIndex, item);
+    final item = sortedList.removeAt(index);
+    sortedList.insert(newIndex, item);
 
-    final updatedList = list.asMap().entries.map((e) {
+    final updatedList = sortedList.asMap().entries.map((e) {
       return e.value.copyWith(orderIndex: e.key);
     }).toList();
 
@@ -1697,13 +1767,13 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
 
   void _moveColumn(InvoiceTemplateSchema template, int index, int direction) {
     final newIndex = index + direction;
-    if (newIndex < 0 || newIndex >= template.tableColumns.length) return;
+    final sortedList = [...template.tableColumns]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    if (newIndex < 0 || newIndex >= sortedList.length) return;
 
-    final list = [...template.tableColumns];
-    final item = list.removeAt(index);
-    list.insert(newIndex, item);
+    final item = sortedList.removeAt(index);
+    sortedList.insert(newIndex, item);
 
-    final updatedList = list.asMap().entries.map((e) {
+    final updatedList = sortedList.asMap().entries.map((e) {
       return e.value.copyWith(orderIndex: e.key);
     }).toList();
 
@@ -1712,17 +1782,85 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
 
   void _moveFooterSection(InvoiceTemplateSchema template, int index, int direction) {
     final newIndex = index + direction;
-    if (newIndex < 0 || newIndex >= template.footerSections.length) return;
+    final sortedList = [...template.footerSections]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    if (newIndex < 0 || newIndex >= sortedList.length) return;
 
-    final list = [...template.footerSections];
-    final item = list.removeAt(index);
-    list.insert(newIndex, item);
+    final item = sortedList.removeAt(index);
+    sortedList.insert(newIndex, item);
 
-    final updatedList = list.asMap().entries.map((e) {
+    final updatedList = sortedList.asMap().entries.map((e) {
       return e.value.copyWith(orderIndex: e.key);
     }).toList();
 
     _updateTemplateSections(template.copyWith(footerSections: updatedList));
+  }
+
+  void _moveField(InvoiceTemplateSchema template, String sectionId, int index, int direction) {
+    final newIndex = index + direction;
+    
+    final updatedSections = template.sections.map((s) {
+      if (s.id == sectionId) {
+        if (newIndex < 0 || newIndex >= s.fields.length) return s;
+        final list = [...s.fields];
+        final item = list.removeAt(index);
+        list.insert(newIndex, item);
+        return s.copyWith(fields: list);
+      }
+      return s;
+    }).toList();
+
+    _updateTemplateSections(template.copyWith(sections: updatedSections));
+  }
+
+  void _addSectionDialog(InvoiceTemplateSchema template) {
+    final titleCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Custom Section'),
+        content: TextField(
+          controller: titleCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Section Title (e.g. Booking Details)',
+            hintText: 'Enter title',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final title = titleCtrl.text.trim();
+              if (title.isNotEmpty) {
+                final sectionId = 'custom_${title.toLowerCase().replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}';
+                final maxOrderIndex = template.sections.isEmpty
+                    ? 0
+                    : template.sections.map((s) => s.orderIndex).reduce((a, b) => a > b ? a : b);
+                
+                final newSection = SectionSchema(
+                  id: sectionId,
+                  title: title,
+                  isVisible: true,
+                  orderIndex: maxOrderIndex + 1,
+                  fields: [],
+                );
+
+                _updateTemplateSections(
+                  template.copyWith(
+                    sections: [...template.sections, newSection],
+                  ),
+                );
+                titleCtrl.dispose();
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Add Section'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _addCustomFieldDialog(InvoiceTemplateSchema template) {

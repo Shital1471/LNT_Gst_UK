@@ -194,7 +194,7 @@ class PdfGeneratorService {
     required NumberFormat currencyFmt,
     required Map<String, dynamic> fieldValues,
   }) {
-    final layout = TourismLayoutConfig(template, items.length);
+    final layout = TourismLayoutConfig(template, items.length, fieldValues);
 
     final companySec = template.sections.firstWhere((s) => s.id == 'company_details', orElse: () => SectionSchema(id: 'company_details', title: 'Company Details', orderIndex: 0, fields: []));
     final companyFields = companySec.fields.where((f) => f.isVisible).toList();
@@ -331,23 +331,18 @@ class PdfGeneratorService {
       );
     }
 
-    pw.Widget _dottedFieldRow(String label, String value, double posY, {bool isRightCol = false}) {
-      final double left = isRightCol ? layout.serviceColumnUnderlineX1 : layout.billToColumnUnderlineX1;
-      final double width = isRightCol
-          ? (layout.serviceColumnUnderlineX2 - layout.serviceColumnUnderlineX1)
-          : (layout.billToColumnUnderlineX2 - layout.billToColumnUnderlineX1);
-
+    pw.Widget _dottedFieldRow(String label, String value, double posX, double posY, double width, double height) {
       return pw.Positioned(
-        left: left * scale,
+        left: posX * scale,
         top: posY * scale,
         child: pw.SizedBox(
           width: width * scale,
-          height: 12 * scale,
+          height: height * scale,
           child: pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
               pw.SizedBox(
-                width: (isRightCol ? 90 : 75) * scale,
+                width: 75 * scale,
                 child: pw.Text(
                   "$label :",
                   style: _getPdfStyle(subsectionTitleStyle, scale, forceBold: true),
@@ -555,42 +550,46 @@ class PdfGeneratorService {
     ];
 
     // Add dotted separators under Bill To and Service Details fields
-    for (final f in customerName.isNotEmpty ? customerSec.fields.where((fields) => fields.isVisible).toList() : []) {
-      if (f.id != 'customer_phone') {
-        final underlineY = f.posY != null ? (f.posY! + f.height) : 0.0;
-        decorativeLines.add(
-          pw.Positioned(
-            left: layout.billToColumnUnderlineX1 * scale,
-            top: underlineY * scale,
-            child: pw.Container(
-              width: (layout.billToColumnUnderlineX2 - layout.billToColumnUnderlineX1) * scale,
-              decoration: const pw.BoxDecoration(
-                border: pw.Border(
-                  bottom: pw.BorderSide(color: PdfColors.grey400, style: pw.BorderStyle.dashed, width: 0.5),
+    if (customerSec.isVisible) {
+      for (final f in customerFields) {
+        if (f.id != 'customer_phone') {
+          final underlineY = layout.getFieldY(f.id) + layout.getFieldHeight(f.id);
+          decorativeLines.add(
+            pw.Positioned(
+              left: layout.billToColumnUnderlineX1 * scale,
+              top: underlineY * scale,
+              child: pw.Container(
+                width: (layout.billToColumnUnderlineX2 - layout.billToColumnUnderlineX1) * scale,
+                decoration: const pw.BoxDecoration(
+                  border: pw.Border(
+                    bottom: pw.BorderSide(color: PdfColors.grey400, style: pw.BorderStyle.dashed, width: 0.5),
+                  ),
                 ),
               ),
             ),
-          ),
-        );
+          );
+        }
       }
     }
-    for (final f in tourTrip.isNotEmpty ? serviceSec.fields.where((fields) => fields.isVisible).toList() : []) {
-      if (f.id != 'coordinator_name') {
-        final underlineY = f.posY != null ? (f.posY! + f.height) : 0.0;
-        decorativeLines.add(
-          pw.Positioned(
-            left: layout.serviceColumnUnderlineX1 * scale,
-            top: underlineY * scale,
-            child: pw.Container(
-              width: (layout.serviceColumnUnderlineX2 - layout.serviceColumnUnderlineX1) * scale,
-              decoration: const pw.BoxDecoration(
-                border: pw.Border(
-                  bottom: pw.BorderSide(color: PdfColors.grey400, style: pw.BorderStyle.dashed, width: 0.5),
+    if (serviceSec.isVisible) {
+      for (final f in serviceFields) {
+        if (f.id != 'coordinator_name') {
+          final underlineY = layout.getFieldY(f.id) + layout.getFieldHeight(f.id);
+          decorativeLines.add(
+            pw.Positioned(
+              left: layout.serviceColumnUnderlineX1 * scale,
+              top: underlineY * scale,
+              child: pw.Container(
+                width: (layout.serviceColumnUnderlineX2 - layout.serviceColumnUnderlineX1) * scale,
+                decoration: const pw.BoxDecoration(
+                  border: pw.Border(
+                    bottom: pw.BorderSide(color: PdfColors.grey400, style: pw.BorderStyle.dashed, width: 0.5),
+                  ),
                 ),
               ),
             ),
-          ),
-        );
+          );
+        }
       }
     }
 
@@ -683,14 +682,27 @@ class PdfGeneratorService {
     ]);
 
     // Build horizontal footer columns based on ordering and visibility
-    final visibleFooters = template.footerSections.where((f) => f.isVisible).toList()
+    final visibleFooters = template.footerSections.where((f) {
+      if (!f.isVisible) return false;
+      if (f.id == 'terms_conditions') return termsSec.isVisible;
+      if (f.id == 'bank_details') return bankSec.isVisible;
+      if (f.id == 'signature') return sigSec.isVisible;
+      return true;
+    }).toList()
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+
+    double sum = visibleFooters.fold(0.0, (prev, f) => prev + f.widthPercent);
+    if (sum == 0.0) sum = 1.0;
+    
+    final normalizedFooters = visibleFooters.map((f) => f.copyWith(
+      widthPercent: (f.widthPercent / sum) * 100.0
+    )).toList();
 
     final List<pw.Widget> footerChildren = [];
     double footX = layout.leftMargin;
 
-    for (int i = 0; i < visibleFooters.length; i++) {
-      final fSec = visibleFooters[i];
+    for (int i = 0; i < normalizedFooters.length; i++) {
+      final fSec = normalizedFooters[i];
       final colW = layout.contentWidth * (fSec.widthPercent / 100);
       final cellX = footX;
 
@@ -852,10 +864,10 @@ class PdfGeneratorService {
                   : (isTagline ? subheaderStyle : bodyStyle);
 
               return _positionedField(
-                posX: f.posX ?? 22.0,
-                posY: f.posY ?? 32.0,
-                width: f.width ?? 230.0,
-                height: f.height ?? 12.0,
+                posX: layout.getFieldX(f.id),
+                posY: layout.getFieldY(f.id),
+                width: layout.getFieldWidth(f.id),
+                height: layout.getFieldHeight(f.id),
                 child: pw.Text(
                   textVal,
                   style: _getPdfStyle(style, scale, forceBold: isCompName || isTagline),
@@ -900,13 +912,40 @@ class PdfGeneratorService {
               final textVal = _formatValue(rawVal, f.valueType);
               final isBold = f.id == 'company_pan' || f.id == 'company_gst_in' || f.id == 'invoice_number';
 
-              return _invoiceInfoRow(f.label, textVal, f.posY ?? 62.0, isBold: isBold);
+              return _positionedField(
+                posX: layout.getFieldX(f.id),
+                posY: layout.getFieldY(f.id),
+                width: layout.getFieldWidth(f.id),
+                height: layout.getFieldHeight(f.id),
+                child: pw.Row(
+                  children: [
+                    pw.SizedBox(
+                      width: 60 * scale,
+                      child: pw.Text(
+                        f.label,
+                        style: pw.TextStyle(
+                          fontSize: 7.5 * scale,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColor.fromInt(0xFF0B3B60),
+                        ),
+                      ),
+                    ),
+                    pw.Text(
+                      ":  $textVal",
+                      style: pw.TextStyle(
+                        fontSize: 7.5 * scale,
+                        fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              );
             }).toList(),
 
           // BILL TO Section title
           if (customerSec.isVisible)
             _positionedField(
-              posX: 22,
+              posX: layout.billToColumnUnderlineX1,
               posY: layout.billToTopLineY + 4.0,
               width: 100,
               height: 12,
@@ -920,7 +959,14 @@ class PdfGeneratorService {
             ...customerFields.map((f) {
               final rawVal = fieldValues[f.id] ?? f.defaultValue;
               final textVal = _formatValue(rawVal, f.valueType);
-              return _dottedFieldRow(f.label, textVal, f.posY ?? 172.0);
+              return _dottedFieldRow(
+                f.label,
+                textVal,
+                layout.getFieldX(f.id),
+                layout.getFieldY(f.id),
+                layout.getFieldWidth(f.id),
+                layout.getFieldHeight(f.id),
+              );
             }).toList(),
 
           // SERVICE DETAIL Title
@@ -940,7 +986,14 @@ class PdfGeneratorService {
             ...serviceFields.map((f) {
               final rawVal = fieldValues[f.id] ?? f.defaultValue;
               final textVal = _formatValue(rawVal, f.valueType);
-              return _dottedFieldRow(f.label, textVal, f.posY ?? 172.0, isRightCol: true);
+              return _dottedFieldRow(
+                f.label,
+                textVal,
+                layout.getFieldX(f.id),
+                layout.getFieldY(f.id),
+                layout.getFieldWidth(f.id),
+                layout.getFieldHeight(f.id),
+              );
             }).toList(),
 
           // Service Items Table
@@ -949,7 +1002,7 @@ class PdfGeneratorService {
               posX: layout.leftMargin,
               posY: layout.tableStartY,
               width: layout.contentWidth,
-              height: layout.tableHeight * scale,
+              height: layout.tableHeight,
               child: pw.Table(
                 border: pw.TableBorder.all(color: PdfColors.black, width: 0.8 * scale),
                 columnWidths: Map.fromIterables(
