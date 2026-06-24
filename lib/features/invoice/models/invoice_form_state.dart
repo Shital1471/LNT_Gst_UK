@@ -8,6 +8,7 @@ class InvoiceFormItem {
   final String? fromTo; // Tourism specific (optional)
   final double quantityDays; // Days in tourism, quantity in standard
   final double rate;
+  final Map<String, String> customValues;
 
   InvoiceFormItem({
     required this.description,
@@ -16,6 +17,7 @@ class InvoiceFormItem {
     this.fromTo,
     required this.quantityDays,
     required this.rate,
+    this.customValues = const {},
   });
 
   double get amount {
@@ -30,6 +32,7 @@ class InvoiceFormItem {
     String? fromTo,
     double? quantityDays,
     double? rate,
+    Map<String, String>? customValues,
   }) {
     return InvoiceFormItem(
       description: description ?? this.description,
@@ -38,6 +41,7 @@ class InvoiceFormItem {
       fromTo: fromTo ?? this.fromTo,
       quantityDays: quantityDays ?? this.quantityDays,
       rate: rate ?? this.rate,
+      customValues: customValues ?? this.customValues,
     );
   }
 
@@ -49,10 +53,19 @@ class InvoiceFormItem {
       'fromTo': fromTo,
       'quantityDays': quantityDays,
       'rate': rate,
+      'customValues': customValues,
     };
   }
 
   factory InvoiceFormItem.fromJson(Map<String, dynamic> json) {
+    final rawCustom = json['customValues'] as Map<String, dynamic>?;
+    final Map<String, String> customVals = {};
+    if (rawCustom != null) {
+      rawCustom.forEach((k, v) {
+        customVals[k] = v.toString();
+      });
+    }
+
     return InvoiceFormItem(
       description: json['description'] as String,
       noOfVehicles: json['noOfVehicles'] as int?,
@@ -60,6 +73,7 @@ class InvoiceFormItem {
       fromTo: json['fromTo'] as String?,
       quantityDays: (json['quantityDays'] as num).toDouble(),
       rate: (json['rate'] as num).toDouble(),
+      customValues: customVals,
     );
   }
 }

@@ -28,6 +28,9 @@ class PdfGeneratorService {
       template = InvoiceTemplateSchema.getPreset(invoice.templateType);
     }
 
+    // Apply layout width protection to prevent boundaries overflow
+    final adjustedTemplate = template.adjustColumnWidths();
+
     // 2. Parse dynamic field values map
     Map<String, dynamic> fieldValues = {};
     if (invoice.fieldValuesJson != null && invoice.fieldValuesJson!.isNotEmpty) {
@@ -54,7 +57,6 @@ class PdfGeneratorService {
       };
     }
 
-    // Add company metadata to values to resolve company details dynamically
     fieldValues['company_name'] = company.name;
     fieldValues['company_address'] = company.address;
     fieldValues['company_gst'] = company.gstNumber;
@@ -64,16 +66,15 @@ class PdfGeneratorService {
 
     // 3. Determine Page dimensions
     PdfPageFormat pageFormat = PdfPageFormat.a4;
-    if (template.pageFormat == 'Letter') {
+    if (adjustedTemplate.pageFormat == 'Letter') {
       pageFormat = PdfPageFormat.letter;
-    } else if (template.pageFormat == 'Custom') {
-      pageFormat = PdfPageFormat(template.pageWidth, template.pageHeight);
+    } else if (adjustedTemplate.pageFormat == 'Custom') {
+      pageFormat = PdfPageFormat(adjustedTemplate.pageWidth, adjustedTemplate.pageHeight);
     }
 
-    // 4. Calculate auto-scaling multiplier based on density
     double scale = 1.0;
 
-    // 5. Load branding logo and signature images if available
+    // 4. Load branding logo and signature images if available
     pw.ImageProvider? logoImage;
     pw.ImageProvider? sigImage;
 
@@ -95,11 +96,11 @@ class PdfGeneratorService {
       } catch (_) {}
     }
 
-    // 6. Build sections in sorted layout sequence
-    final visibleSections = template.sections.where((s) => s.isVisible).toList()
+    // 5. Build sections in sorted layout sequence
+    final visibleSections = adjustedTemplate.sections.where((s) => s.isVisible).toList()
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
-    final isTourism = template.id == 'tourism';
+    final isTourism = adjustedTemplate.id == 'tourism';
     final pageTheme = isTourism
         ? pw.ThemeData.withFont(
             base: pw.Font.times(),
@@ -116,15 +117,15 @@ class PdfGeneratorService {
         margin: isTourism
             ? pw.EdgeInsets.zero
             : pw.EdgeInsets.only(
-                top: template.marginTop * scale,
-                bottom: template.marginBottom * scale,
-                left: template.marginLeft * scale,
-                right: template.marginRight * scale,
+                top: adjustedTemplate.marginTop * scale,
+                bottom: adjustedTemplate.marginBottom * scale,
+                left: adjustedTemplate.marginLeft * scale,
+                right: adjustedTemplate.marginRight * scale,
               ),
         build: (pw.Context context) {
           if (isTourism) {
             return _buildTourismLayout(
-              template: template,
+              template: adjustedTemplate,
               invoice: invoice,
               items: items,
               company: company,
@@ -137,30 +138,40 @@ class PdfGeneratorService {
               fieldValues: fieldValues,
             );
           }
+
           pw.Widget _buildSection(SectionSchema sec) {
             if (sec.id == 'company_details') {
-              return _buildCompanyDetailsHeader(sec, logoImage, invoice, company, scale, df);
+              return _buildCompanyDetailsHeader(adjustedTemplate, sec, logoImage, invoice, company, scale, df);
             } else if (sec.id == 'customer_details') {
-              return _buildCustomerDetailsBlock(sec, fieldValues, scale);
+              return _buildCustomerDetailsBlock(adjustedTemplate, sec, fieldValues, scale);
             } else if (sec.id == 'invoice_info') {
-              return _buildInvoiceMetaGrid(sec, fieldValues, scale, df);
+              return _buildInvoiceMetaGrid(adjustedTemplate, sec, fieldValues, scale, df);
             } else if (sec.id == 'items_table') {
-              return _buildDynamicItemsTable(template.id, items, scale, df, simpleCurrencyFmt);
+              return _buildDynamicItemsTable(adjustedTemplate, items, scale, df, simpleCurrencyFmt);
             } else if (sec.id == 'tax_summary') {
-              return _buildTaxSummaryBlock(invoice, scale, simpleCurrencyFmt, currencyFmt);
+              return _buildTaxSummaryBlock(adjustedTemplate, invoice, scale, simpleCurrencyFmt, currencyFmt);
             } else if (sec.id == 'payment_info') {
-              return _buildPaymentInfoBlock(sec, company, invoice, scale, simpleCurrencyFmt, currencyFmt);
+              return _buildPaymentInfoBlock(adjustedTemplate, sec, company, invoice, scale, simpleCurrencyFmt, currencyFmt);
             } else if (sec.id == 'terms_conditions') {
-              return _buildTermsConditionsBlock(sec, scale);
+              return _buildTermsConditionsBlock(adjustedTemplate, sec, scale);
             } else if (sec.id == 'signature') {
-              return _buildSignatureBlock(sec, company, sigImage, scale);
+              return _buildSignatureBlock(adjustedTemplate, sec, company, sigImage, scale);
             }
             return pw.SizedBox();
           }
 
+          // Dynamic rendering using spacing gap properties
+          final children = <pw.Widget>[];
+          for (int i = 0; i < visibleSections.length; i++) {
+            if (i > 0) {
+              children.add(pw.SizedBox(height: adjustedTemplate.sectionGap * scale));
+            }
+            children.add(_buildSection(visibleSections[i]));
+          }
+
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-            children: visibleSections.map(_buildSection).toList(),
+            children: children,
           );
         },
       ),
@@ -169,6 +180,7 @@ class PdfGeneratorService {
     return await pdf.save();
   }
 
+  // --- Dynamic Tourism Absolute Layout ---
   static pw.Widget _buildTourismLayout({
     required InvoiceTemplateSchema template,
     required Invoice invoice,
@@ -182,6 +194,26 @@ class PdfGeneratorService {
     required NumberFormat currencyFmt,
     required Map<String, dynamic> fieldValues,
   }) {
+    final layout = TourismLayoutConfig(template, items.length);
+
+    final companySec = template.sections.firstWhere((s) => s.id == 'company_details', orElse: () => SectionSchema(id: 'company_details', title: 'Company Details', orderIndex: 0, fields: []));
+    final companyFields = companySec.fields.where((f) => f.isVisible).toList();
+
+    final invoiceSec = template.sections.firstWhere((s) => s.id == 'invoice_info', orElse: () => SectionSchema(id: 'invoice_info', title: 'Invoice Details', orderIndex: 2, fields: []));
+    final invoiceFields = invoiceSec.fields.where((f) => f.isVisible).toList();
+
+    final customerSec = template.sections.firstWhere((s) => s.id == 'customer_details', orElse: () => SectionSchema(id: 'customer_details', title: 'BILL TO', orderIndex: 1, fields: []));
+    final customerFields = customerSec.fields.where((f) => f.isVisible).toList();
+
+    final serviceSec = template.sections.firstWhere((s) => s.id == 'service_details', orElse: () => SectionSchema(id: 'service_details', title: 'SERVICE DETAIL 8', orderIndex: 3, fields: []));
+    final serviceFields = serviceSec.fields.where((f) => f.isVisible).toList();
+
+    final bankSec = template.sections.firstWhere((s) => s.id == 'payment_info', orElse: () => SectionSchema(id: 'payment_info', title: 'BANK DETAIL 8', orderIndex: 6, fields: []));
+    final bankFields = bankSec.fields.where((f) => f.isVisible).toList();
+
+    final visibleCols = template.tableColumns.where((c) => c.isVisible).toList()
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+
     final cName = (fieldValues['company_name'] ?? company.name).toString().toUpperCase();
     final tagline = (fieldValues['company_tagline'] ?? 'TOURS & TRAVELS | CAR RENTAL | TRANSPORT SOLUTIONS').toString().toUpperCase();
     final phone = fieldValues['company_phone'] ?? company.contactNumber;
@@ -216,37 +248,38 @@ class PdfGeneratorService {
     final bankAccountNo = fieldValues['bank_account_no'] ?? company.bankAccountNumber;
     final bankIfsc = fieldValues['bank_ifsc'] ?? company.bankIfscCode;
 
-    final termsString = fieldValues['terms_text'] ?? 
-        '1. Payment to be made within 7 days from invoice date.\n2. Extra charges (State Tax, Night Halt, Extra Km) will be charged as per actual.\n3. Vehicle will be provided as per the itinerary only.\n4. No refund for unused days or cancellations post journey.\n5. All disputes are subject to Dehradun jurisdiction only.';
+    final termsSec = template.sections.firstWhere((s) => s.id == 'terms_conditions', orElse: () => SectionSchema(id: 'terms_conditions', title: 'TERM & CONDITION 8', orderIndex: 7, fields: []));
+    final termsField = termsSec.fields.firstWhere((f) => f.id == 'terms_text', orElse: () => FieldSchema(id: 'terms_text', label: 'Terms', valueType: 'text'));
+    final termsString = fieldValues['terms_text'] ?? termsField.defaultValue?.toString() ?? '';
     final termsList = termsString.toString().split('\n').where((t) => t.isNotEmpty).toList();
 
-    final signatoryTitle = fieldValues['signatory_title'] ?? 'AUTHORISED SIGNATORY';
+    final sigSec = template.sections.firstWhere((s) => s.id == 'signature', orElse: () => SectionSchema(id: 'signature', title: 'Authorized Signatory', orderIndex: 8, fields: []));
+    final sigField = sigSec.fields.firstWhere((f) => f.id == 'signatory_title', orElse: () => FieldSchema(id: 'signatory_title', label: 'Title', valueType: 'text'));
+    final signatoryTitle = fieldValues['signatory_title'] ?? sigField.defaultValue?.toString() ?? 'AUTHORISED SIGNATORY';
 
     final double gstPercentage = (invoice.subTotal == 0) ? 0.0 : ((invoice.cgst + invoice.sgst) / invoice.subTotal * 100);
     final gstHalfRate = gstPercentage / 2;
 
-    // Calculate dynamic Y coordinates: Totals and Words boxes follow the table dynamically,
-    // while the footer remains anchored to the bottom.
-    final double tableHeaderHeight = 20.0;
-    final double tableRowHeight = 20.0;
-    final double tableHeight = tableHeaderHeight + items.length * tableRowHeight;
-    final double tableEndY = TourismLayoutConfig.tableStartY + tableHeight;
+    // Layout values
+    final double tableEndY = layout.tableEndY;
+    final double totalsBoxY = layout.totalsBoxY;
+    final double wordsBoxY = layout.wordsBoxY;
+    final double footerTopLineY = layout.footerTopLineY;
+    final double footerBottomLineY = layout.footerBottomLineY;
+    final double sigBoxY = layout.sigBoxY;
+    final double sigUnderlineY = layout.sigUnderlineY;
+    final double signatoryTitleY = layout.signatoryTitleY;
 
-    double totalsBoxY = tableEndY + 15.0;
-    final double totalsBoxHeight = TourismLayoutConfig.totalsBoxHeight;
-    final double totalsBoxEndY = totalsBoxY + totalsBoxHeight;
+    // Fetch typography
+    final headerStyle = template.typography['header'] ?? TextStyleSchema(fontSize: 12, fontWeight: 'bold', fontFamily: 'Times New Roman', textColor: '#0B3B60');
+    final subheaderStyle = template.typography['subheader'] ?? TextStyleSchema(fontSize: 6.5, fontWeight: 'bold', fontFamily: 'Times New Roman', textColor: '#E57A25');
+    final sectionTitleStyle = template.typography['section_title'] ?? TextStyleSchema(fontSize: 8, fontWeight: 'bold', fontFamily: 'Times New Roman', textColor: '#499F34');
+    final subsectionTitleStyle = template.typography['subsection_title'] ?? TextStyleSchema(fontSize: 8, fontWeight: 'bold', fontFamily: 'Times New Roman', textColor: '#000000');
+    final bodyStyle = template.typography['body'] ?? TextStyleSchema(fontSize: 7.5, fontWeight: 'normal', fontFamily: 'Times New Roman', textColor: '#000000');
+    final tableHeaderStyle = template.typography['table_header'] ?? TextStyleSchema(fontSize: 7.5, fontWeight: 'bold', fontFamily: 'Times New Roman', textColor: '#FFFFFF');
+    final tableDataStyle = template.typography['table_data'] ?? TextStyleSchema(fontSize: 7.5, fontWeight: 'normal', fontFamily: 'Times New Roman', textColor: '#000000');
+    final footerStyle = template.typography['footer'] ?? TextStyleSchema(fontSize: 6.5, fontWeight: 'normal', fontFamily: 'Times New Roman', textColor: '#000000');
 
-    double wordsBoxY = totalsBoxEndY + 10.0;
-    final double wordsBoxHeight = TourismLayoutConfig.wordsBoxHeight;
-    final double wordsBoxEndY = wordsBoxY + wordsBoxHeight;
-
-    double footerTopLineY = wordsBoxEndY + 10.0;
-    final double footerBottomLineY = footerTopLineY + 125.0; // 680 - 555 = 125
-    final double sigBoxY = footerTopLineY + 43.0; // 598 - 555 = 43
-    final double sigUnderlineY = footerTopLineY + 87.0; // 642 - 555 = 87
-    final double signatoryTitleY = footerTopLineY + 93.0; // 648 - 555 = 93
-
-    // Helper functions for absolute Positioning
     pw.Widget _positionedField({
       required double posX,
       required double posY,
@@ -267,10 +300,10 @@ class PdfGeneratorService {
 
     pw.Widget _invoiceInfoRow(String label, String value, double posY, {bool isBold = false}) {
       return pw.Positioned(
-        left: (TourismLayoutConfig.invBoxX + 6) * scale,
+        left: (layout.invBoxX + 6) * scale,
         top: posY * scale,
         child: pw.SizedBox(
-          width: (TourismLayoutConfig.invBoxWidth - 12) * scale,
+          width: (layout.invBoxWidth - 12) * scale,
           height: 10 * scale,
           child: pw.Row(
             children: [
@@ -299,8 +332,10 @@ class PdfGeneratorService {
     }
 
     pw.Widget _dottedFieldRow(String label, String value, double posY, {bool isRightCol = false}) {
-      final double left = (isRightCol ? 300 : 22);
-      final double width = (isRightCol ? 273.27 : 263);
+      final double left = isRightCol ? layout.serviceColumnUnderlineX1 : layout.billToColumnUnderlineX1;
+      final double width = isRightCol
+          ? (layout.serviceColumnUnderlineX2 - layout.serviceColumnUnderlineX1)
+          : (layout.billToColumnUnderlineX2 - layout.billToColumnUnderlineX1);
 
       return pw.Positioned(
         left: left * scale,
@@ -315,13 +350,13 @@ class PdfGeneratorService {
                 width: (isRightCol ? 90 : 75) * scale,
                 child: pw.Text(
                   "$label :",
-                  style: pw.TextStyle(fontSize: 8.0 * scale, fontWeight: pw.FontWeight.bold),
+                  style: _getPdfStyle(subsectionTitleStyle, scale, forceBold: true),
                 ),
               ),
               pw.Expanded(
                 child: pw.Text(
                   value,
-                  style: pw.TextStyle(fontSize: 8.0 * scale),
+                  style: _getPdfStyle(bodyStyle, scale),
                 ),
               ),
             ],
@@ -331,14 +366,14 @@ class PdfGeneratorService {
     }
 
     pw.Widget _totalsRow(String label, String value, int rowIndex, {bool isBold = false, bool isTotalAmount = false}) {
-      final double top = totalsBoxY + (rowIndex * TourismLayoutConfig.totalsRowHeight);
+      final double top = totalsBoxY + (rowIndex * layout.totalsRowHeight);
       
       return pw.Positioned(
-        left: TourismLayoutConfig.totalsBoxX * scale,
+        left: layout.totalsBoxX * scale,
         top: top * scale,
         child: pw.Container(
-          width: TourismLayoutConfig.totalsBoxWidth * scale,
-          height: TourismLayoutConfig.totalsRowHeight * scale,
+          width: layout.totalsBoxWidth * scale,
+          height: layout.totalsRowHeight * scale,
           color: isTotalAmount ? PdfColors.black : null,
           padding: pw.EdgeInsets.symmetric(horizontal: 6 * scale, vertical: 3 * scale),
           child: pw.Row(
@@ -347,17 +382,17 @@ class PdfGeneratorService {
               pw.Text(
                 label,
                 style: pw.TextStyle(
-                  fontSize: 7.5 * scale,
-                  fontWeight: (isBold || isTotalAmount) ? pw.FontWeight.bold : pw.FontWeight.normal,
-                  color: isTotalAmount ? PdfColors.white : PdfColors.black,
+                  fontSize: tableDataStyle.fontSize * scale,
+                  font: (isBold || isTotalAmount) ? _getFontBold(tableDataStyle.fontFamily) : _getFont(tableDataStyle.fontFamily),
+                  color: isTotalAmount ? PdfColors.white : _parseColor(tableDataStyle.textColor),
                 ),
               ),
               pw.Text(
                 "Rs. $value",
                 style: pw.TextStyle(
-                  fontSize: 7.5 * scale,
-                  fontWeight: (isBold || isTotalAmount) ? pw.FontWeight.bold : pw.FontWeight.normal,
-                  color: isTotalAmount ? PdfColors.white : PdfColors.black,
+                  fontSize: tableDataStyle.fontSize * scale,
+                  font: (isBold || isTotalAmount) ? _getFontBold(tableDataStyle.fontFamily) : _getFont(tableDataStyle.fontFamily),
+                  color: isTotalAmount ? PdfColors.white : _parseColor(tableDataStyle.textColor),
                 ),
               ),
             ],
@@ -379,13 +414,13 @@ class PdfGeneratorService {
                 width: 62 * scale,
                 child: pw.Text(
                   "$label:",
-                  style: pw.TextStyle(fontSize: 7.5 * scale, fontWeight: pw.FontWeight.bold),
+                  style: pw.TextStyle(fontSize: footerStyle.fontSize * scale, fontWeight: pw.FontWeight.bold, font: _getFontBold(footerStyle.fontFamily)),
                 ),
               ),
               pw.Expanded(
                 child: pw.Text(
                   value,
-                  style: pw.TextStyle(fontSize: 7.5 * scale),
+                  style: _getPdfStyle(footerStyle, scale),
                 ),
               ),
             ],
@@ -399,7 +434,7 @@ class PdfGeneratorService {
         padding: pw.EdgeInsets.symmetric(horizontal: 4 * scale, vertical: 3.5 * scale),
         child: pw.Text(
           text,
-          style: pw.TextStyle(fontSize: 7.5 * scale),
+          style: _getPdfStyle(tableDataStyle, scale),
           textAlign: align,
         ),
       );
@@ -409,10 +444,10 @@ class PdfGeneratorService {
     final List<pw.Widget> decorativeLines = [
       // Top header dashed line
       pw.Positioned(
-        left: TourismLayoutConfig.leftMargin * scale,
-        top: TourismLayoutConfig.headerTopLineY * scale,
+        left: layout.leftMargin * scale,
+        top: layout.headerTopLineY * scale,
         child: pw.Container(
-          width: TourismLayoutConfig.contentWidth * scale,
+          width: layout.contentWidth * scale,
           decoration: const pw.BoxDecoration(
             border: pw.Border(
               bottom: pw.BorderSide(color: PdfColors.grey400, style: pw.BorderStyle.dashed, width: 0.5),
@@ -422,10 +457,10 @@ class PdfGeneratorService {
       ),
       // Bottom header dashed line
       pw.Positioned(
-        left: TourismLayoutConfig.leftMargin * scale,
-        top: TourismLayoutConfig.headerBottomLineY * scale,
+        left: layout.leftMargin * scale,
+        top: layout.headerBottomLineY * scale,
         child: pw.Container(
-          width: TourismLayoutConfig.contentWidth * scale,
+          width: layout.contentWidth * scale,
           decoration: const pw.BoxDecoration(
             border: pw.Border(
               bottom: pw.BorderSide(color: PdfColors.grey400, style: pw.BorderStyle.dashed, width: 0.5),
@@ -435,21 +470,21 @@ class PdfGeneratorService {
       ),
       // Green divider
       pw.Positioned(
-        left: TourismLayoutConfig.headerDividerX * scale,
-        top: TourismLayoutConfig.headerTopLineY * scale,
+        left: layout.headerDividerX * scale,
+        top: layout.headerTopLineY * scale,
         child: pw.Container(
           width: 1.2 * scale,
-          height: (TourismLayoutConfig.headerBottomLineY - TourismLayoutConfig.headerTopLineY) * scale,
+          height: (layout.headerBottomLineY - layout.headerTopLineY) * scale,
           color: PdfColor.fromInt(0xFF499F34),
         ),
       ),
       // Invoice Box green border
       pw.Positioned(
-        left: TourismLayoutConfig.invBoxX * scale,
-        top: TourismLayoutConfig.invBoxY * scale,
+        left: layout.invBoxX * scale,
+        top: layout.invBoxY * scale,
         child: pw.Container(
-          width: TourismLayoutConfig.invBoxWidth * scale,
-          height: TourismLayoutConfig.invBoxHeight * scale,
+          width: layout.invBoxWidth * scale,
+          height: layout.invBoxHeight * scale,
           decoration: pw.BoxDecoration(
             border: pw.Border.all(color: PdfColor.fromInt(0xFF499F34), width: 1.0 * scale),
             borderRadius: pw.BorderRadius.all(pw.Radius.circular(3 * scale)),
@@ -458,11 +493,11 @@ class PdfGeneratorService {
       ),
       // Invoice Box Header Green fill
       pw.Positioned(
-        left: (TourismLayoutConfig.invBoxX + 0.5) * scale,
-        top: (TourismLayoutConfig.invBoxY + 0.5) * scale,
+        left: (layout.invBoxX + 0.5) * scale,
+        top: (layout.invBoxY + 0.5) * scale,
         child: pw.Container(
-          width: (TourismLayoutConfig.invBoxWidth - 1.0) * scale,
-          height: (TourismLayoutConfig.invBoxHeaderHeight - 0.5) * scale,
+          width: (layout.invBoxWidth - 1.0) * scale,
+          height: (layout.invBoxHeaderHeight - 0.5) * scale,
           decoration: pw.BoxDecoration(
             color: PdfColor.fromInt(0xFF499F34),
             borderRadius: pw.BorderRadius.only(
@@ -474,10 +509,10 @@ class PdfGeneratorService {
       ),
       // Bill To top dashed line
       pw.Positioned(
-        left: TourismLayoutConfig.leftMargin * scale,
-        top: TourismLayoutConfig.billToTopLineY * scale,
+        left: layout.leftMargin * scale,
+        top: layout.billToTopLineY * scale,
         child: pw.Container(
-          width: TourismLayoutConfig.contentWidth * scale,
+          width: layout.contentWidth * scale,
           decoration: const pw.BoxDecoration(
             border: pw.Border(
               bottom: pw.BorderSide(color: PdfColors.black, style: pw.BorderStyle.dashed, width: 0.8),
@@ -487,10 +522,10 @@ class PdfGeneratorService {
       ),
       // Bill To bottom dashed line
       pw.Positioned(
-        left: TourismLayoutConfig.leftMargin * scale,
-        top: TourismLayoutConfig.billToBottomLineY * scale,
+        left: layout.leftMargin * scale,
+        top: layout.billToBottomLineY * scale,
         child: pw.Container(
-          width: TourismLayoutConfig.contentWidth * scale,
+          width: layout.contentWidth * scale,
           decoration: const pw.BoxDecoration(
             border: pw.Border(
               bottom: pw.BorderSide(color: PdfColors.black, style: pw.BorderStyle.dashed, width: 0.8),
@@ -500,19 +535,19 @@ class PdfGeneratorService {
       ),
       // Column Underlines
       pw.Positioned(
-        left: TourismLayoutConfig.billToColumnUnderlineX1 * scale,
-        top: TourismLayoutConfig.billToColumnUnderlineY * scale,
+        left: layout.billToColumnUnderlineX1 * scale,
+        top: layout.billToColumnUnderlineY * scale,
         child: pw.Container(
-          width: (TourismLayoutConfig.billToColumnUnderlineX2 - TourismLayoutConfig.billToColumnUnderlineX1) * scale,
+          width: (layout.billToColumnUnderlineX2 - layout.billToColumnUnderlineX1) * scale,
           height: 1.0 * scale,
           color: PdfColors.black,
         ),
       ),
       pw.Positioned(
-        left: TourismLayoutConfig.serviceColumnUnderlineX1 * scale,
-        top: TourismLayoutConfig.serviceColumnUnderlineY * scale,
+        left: layout.serviceColumnUnderlineX1 * scale,
+        top: layout.serviceColumnUnderlineY * scale,
         child: pw.Container(
-          width: (TourismLayoutConfig.serviceColumnUnderlineX2 - TourismLayoutConfig.serviceColumnUnderlineX1) * scale,
+          width: (layout.serviceColumnUnderlineX2 - layout.serviceColumnUnderlineX1) * scale,
           height: 1.0 * scale,
           color: PdfColors.black,
         ),
@@ -520,58 +555,64 @@ class PdfGeneratorService {
     ];
 
     // Add dotted separators under Bill To and Service Details fields
-    for (double y in [184.0, 198.0, 212.0, 226.0]) {
-      decorativeLines.add(
-        pw.Positioned(
-          left: TourismLayoutConfig.billToColumnUnderlineX1 * scale,
-          top: y * scale,
-          child: pw.Container(
-            width: (TourismLayoutConfig.billToColumnUnderlineX2 - TourismLayoutConfig.billToColumnUnderlineX1) * scale,
-            decoration: const pw.BoxDecoration(
-              border: pw.Border(
-                bottom: pw.BorderSide(color: PdfColors.grey400, style: pw.BorderStyle.dashed, width: 0.5),
+    for (final f in customerName.isNotEmpty ? customerSec.fields.where((fields) => fields.isVisible).toList() : []) {
+      if (f.id != 'customer_phone') {
+        final underlineY = f.posY != null ? (f.posY! + f.height) : 0.0;
+        decorativeLines.add(
+          pw.Positioned(
+            left: layout.billToColumnUnderlineX1 * scale,
+            top: underlineY * scale,
+            child: pw.Container(
+              width: (layout.billToColumnUnderlineX2 - layout.billToColumnUnderlineX1) * scale,
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  bottom: pw.BorderSide(color: PdfColors.grey400, style: pw.BorderStyle.dashed, width: 0.5),
+                ),
               ),
             ),
           ),
-        ),
-      );
-      decorativeLines.add(
-        pw.Positioned(
-          left: TourismLayoutConfig.serviceColumnUnderlineX1 * scale,
-          top: y * scale,
-          child: pw.Container(
-            width: (TourismLayoutConfig.serviceColumnUnderlineX2 - TourismLayoutConfig.serviceColumnUnderlineX1) * scale,
-            decoration: const pw.BoxDecoration(
-              border: pw.Border(
-                bottom: pw.BorderSide(color: PdfColors.grey400, style: pw.BorderStyle.dashed, width: 0.5),
+        );
+      }
+    }
+    for (final f in tourTrip.isNotEmpty ? serviceSec.fields.where((fields) => fields.isVisible).toList() : []) {
+      if (f.id != 'coordinator_name') {
+        final underlineY = f.posY != null ? (f.posY! + f.height) : 0.0;
+        decorativeLines.add(
+          pw.Positioned(
+            left: layout.serviceColumnUnderlineX1 * scale,
+            top: underlineY * scale,
+            child: pw.Container(
+              width: (layout.serviceColumnUnderlineX2 - layout.serviceColumnUnderlineX1) * scale,
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  bottom: pw.BorderSide(color: PdfColors.grey400, style: pw.BorderStyle.dashed, width: 0.5),
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
+      }
     }
 
-    // Add Totals Box boundaries and inside lines
+    // Add Totals Box boundaries
     decorativeLines.addAll([
-      // Totals box outer dashed border
       pw.Positioned(
-        left: TourismLayoutConfig.totalsBoxX * scale,
+        left: layout.totalsBoxX * scale,
         top: totalsBoxY * scale,
         child: pw.Container(
-          width: TourismLayoutConfig.totalsBoxWidth * scale,
-          height: TourismLayoutConfig.totalsBoxHeight * scale,
+          width: layout.totalsBoxWidth * scale,
+          height: layout.totalsBoxHeight * scale,
           decoration: pw.BoxDecoration(
             border: pw.Border.all(color: PdfColors.black, width: 0.8 * scale, style: pw.BorderStyle.dashed),
           ),
         ),
       ),
-      // Inside vertical dashed separator
       pw.Positioned(
-        left: TourismLayoutConfig.totalsBoxDividerX * scale,
+        left: layout.totalsBoxDividerX * scale,
         top: totalsBoxY * scale,
         child: pw.Container(
           width: 0.5 * scale,
-          height: TourismLayoutConfig.totalsBoxHeight * scale,
+          height: layout.totalsBoxHeight * scale,
           decoration: const pw.BoxDecoration(
             border: pw.Border(
               left: pw.BorderSide(color: PdfColors.black, style: pw.BorderStyle.dashed, width: 0.5),
@@ -581,13 +622,13 @@ class PdfGeneratorService {
       ),
     ]);
     for (int i = 1; i < 6; i++) {
-      final double y = totalsBoxY + (i * TourismLayoutConfig.totalsRowHeight);
+      final double y = totalsBoxY + (i * layout.totalsRowHeight);
       decorativeLines.add(
         pw.Positioned(
-          left: TourismLayoutConfig.totalsBoxX * scale,
+          left: layout.totalsBoxX * scale,
           top: y * scale,
           child: pw.Container(
-            width: TourismLayoutConfig.totalsBoxWidth * scale,
+            width: layout.totalsBoxWidth * scale,
             decoration: const pw.BoxDecoration(
               border: pw.Border(
                 bottom: pw.BorderSide(color: PdfColors.black, style: pw.BorderStyle.dashed, width: 0.5),
@@ -598,14 +639,14 @@ class PdfGeneratorService {
       );
     }
 
-    // Amount in words box dashed border
+    // Amount in words border
     decorativeLines.add(
       pw.Positioned(
-        left: TourismLayoutConfig.wordsBoxX * scale,
+        left: layout.wordsBoxX * scale,
         top: wordsBoxY * scale,
         child: pw.Container(
-          width: TourismLayoutConfig.wordsBoxWidth * scale,
-          height: TourismLayoutConfig.wordsBoxHeight * scale,
+          width: layout.wordsBoxWidth * scale,
+          height: layout.wordsBoxHeight * scale,
           decoration: pw.BoxDecoration(
             border: pw.Border.all(color: PdfColors.black, width: 0.8 * scale, style: pw.BorderStyle.dashed),
           ),
@@ -615,12 +656,11 @@ class PdfGeneratorService {
 
     // Footer section boundaries
     decorativeLines.addAll([
-      // Top dashed footer line
       pw.Positioned(
-        left: TourismLayoutConfig.leftMargin * scale,
+        left: layout.leftMargin * scale,
         top: footerTopLineY * scale,
         child: pw.Container(
-          width: TourismLayoutConfig.contentWidth * scale,
+          width: layout.contentWidth * scale,
           decoration: const pw.BoxDecoration(
             border: pw.Border(
               bottom: pw.BorderSide(color: PdfColors.black, style: pw.BorderStyle.dashed, width: 0.8),
@@ -628,422 +668,446 @@ class PdfGeneratorService {
           ),
         ),
       ),
-      // Bottom dashed footer line
       pw.Positioned(
-        left: TourismLayoutConfig.leftMargin * scale,
+        left: layout.leftMargin * scale,
         top: footerBottomLineY * scale,
         child: pw.Container(
-          width: TourismLayoutConfig.contentWidth * scale,
+          width: layout.contentWidth * scale,
           decoration: const pw.BoxDecoration(
             border: pw.Border(
               bottom: pw.BorderSide(color: PdfColors.black, style: pw.BorderStyle.dashed, width: 0.8),
-            ),
-          ),
-        ),
-      ),
-      // Green vertical divider 1
-      pw.Positioned(
-        left: TourismLayoutConfig.footerDivider1X * scale,
-        top: footerTopLineY * scale,
-        child: pw.Container(
-          width: 1.0 * scale,
-          height: (footerBottomLineY - footerTopLineY) * scale,
-          color: PdfColor.fromInt(0xFF499F34),
-        ),
-      ),
-      // Green vertical divider 2
-      pw.Positioned(
-        left: TourismLayoutConfig.footerDivider2X * scale,
-        top: footerTopLineY * scale,
-        child: pw.Container(
-          width: 1.0 * scale,
-          height: (footerBottomLineY - footerTopLineY) * scale,
-          color: PdfColor.fromInt(0xFF499F34),
-        ),
-      ),
-      // Signature dotted line
-      pw.Positioned(
-        left: 395 * scale,
-        top: sigUnderlineY * scale,
-        child: pw.Container(
-          width: 171 * scale,
-          decoration: const pw.BoxDecoration(
-            border: pw.Border(
-              bottom: pw.BorderSide(color: PdfColors.grey500, style: pw.BorderStyle.dashed, width: 0.5),
             ),
           ),
         ),
       ),
     ]);
 
+    // Build horizontal footer columns based on ordering and visibility
+    final visibleFooters = template.footerSections.where((f) => f.isVisible).toList()
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+
+    final List<pw.Widget> footerChildren = [];
+    double footX = layout.leftMargin;
+
+    for (int i = 0; i < visibleFooters.length; i++) {
+      final fSec = visibleFooters[i];
+      final colW = layout.contentWidth * (fSec.widthPercent / 100);
+      final cellX = footX;
+
+      if (i > 0) {
+        // Draw green separator line
+        decorativeLines.add(
+          pw.Positioned(
+            left: cellX * scale,
+            top: footerTopLineY * scale,
+            child: pw.Container(
+              width: 1.0 * scale,
+              height: (footerBottomLineY - footerTopLineY) * scale,
+              color: PdfColor.fromInt(0xFF499F34),
+            ),
+          ),
+        );
+      }
+
+      footX += colW;
+
+      pw.Widget fCell;
+      if (fSec.id == 'terms_conditions') {
+        fCell = pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              fSec.title.toUpperCase(),
+              style: _getPdfStyle(sectionTitleStyle, scale, forceBold: true),
+            ),
+            pw.SizedBox(height: 2),
+            ...termsList.map((t) => pw.Padding(
+              padding: pw.EdgeInsets.symmetric(vertical: 0.5 * scale),
+              child: pw.Text(t, style: _getPdfStyle(footerStyle, scale)),
+            )).toList(),
+          ],
+        );
+      } else if (fSec.id == 'bank_details') {
+        fCell = pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              fSec.title.toUpperCase(),
+              style: _getPdfStyle(sectionTitleStyle, scale, forceBold: true),
+            ),
+            pw.SizedBox(height: 2),
+            ...bankFields.map((bf) {
+              final val = fieldValues[bf.id] ?? bf.defaultValue ?? '';
+              return pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(vertical: 1),
+                child: pw.Row(
+                  children: [
+                    pw.SizedBox(
+                      width: 50 * scale,
+                      child: pw.Text(
+                        "${bf.label}:",
+                        style: pw.TextStyle(fontSize: footerStyle.fontSize * scale, fontWeight: pw.FontWeight.bold, font: _getFontBold(footerStyle.fontFamily)),
+                      ),
+                    ),
+                    pw.Expanded(
+                      child: pw.Text(
+                        val.toString(),
+                        style: _getPdfStyle(footerStyle, scale),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
+        );
+      } else {
+        // signature
+        fCell = pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.Text(
+              "FOR ${cName.toUpperCase()}",
+              style: pw.TextStyle(
+                fontSize: footerStyle.fontSize * scale,
+                fontWeight: pw.FontWeight.bold,
+                font: _getFontBold(footerStyle.fontFamily),
+                color: PdfColor.fromInt(0xFF0B3B60),
+              ),
+              textAlign: pw.TextAlign.center,
+            ),
+            pw.SizedBox(height: 2),
+            pw.Text(
+              "This is a computer-generated invoice.\nSubject to applicable laws of India.",
+              style: pw.TextStyle(fontSize: 5.0 * scale, color: PdfColor.fromInt(0xFF555555)),
+              textAlign: pw.TextAlign.center,
+            ),
+            pw.Spacer(),
+            if (sigImage != null)
+              pw.Image(sigImage, height: 22 * scale)
+            else
+              pw.Text(
+                "Abhishek Prajapati",
+                style: pw.TextStyle(
+                  font: pw.Font.timesItalic(),
+                  fontSize: 10 * scale,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColor.fromInt(0xFF1D4ED8),
+                ),
+              ),
+            pw.Container(
+              height: 0.5,
+              margin: const pw.EdgeInsets.symmetric(vertical: 2),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  bottom: pw.BorderSide(color: PdfColors.grey500, style: pw.BorderStyle.dashed, width: 0.5),
+                ),
+              ),
+            ),
+            pw.Text(
+              signatoryTitle.toString().toUpperCase(),
+              style: pw.TextStyle(
+                fontSize: footerStyle.fontSize * scale,
+                fontWeight: pw.FontWeight.bold,
+                font: _getFontBold(footerStyle.fontFamily),
+                color: PdfColor.fromInt(0xFF0B3B60),
+              ),
+              textAlign: pw.TextAlign.center,
+            ),
+          ],
+        );
+      }
+
+      footerChildren.add(
+        _positionedField(
+          posX: cellX + 4.0,
+          posY: footerTopLineY + 6.0,
+          width: colW - 8.0,
+          height: layout.footerHeight - 12.0,
+          child: fCell,
+        ),
+      );
+    }
+
     return pw.SizedBox(
-      width: TourismLayoutConfig.pageWidth * scale,
-      height: TourismLayoutConfig.pageHeight * scale,
+      width: layout.pageWidth * scale,
+      height: layout.pageHeight * scale,
       child: pw.Stack(
         children: [
           // 1. Render all background lines & borders
           ...decorativeLines,
 
           // 2. Company Info Left
-          _positionedField(
-            posX: 22, posY: 32, width: 230, height: 16,
-            child: pw.Text(
-              cName,
-              style: pw.TextStyle(
-                fontSize: 12 * scale,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColor.fromInt(0xFF0B3B60),
-              ),
-            ),
-          ),
-          _positionedField(
-            posX: 22, posY: 46, width: 230, height: 10,
-            child: pw.Text(
-              tagline,
-              style: pw.TextStyle(
-                fontSize: 6.5 * scale,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColor.fromInt(0xFFE57A25),
-              ),
-            ),
-          ),
-          _positionedField(
-            posX: 22, posY: 78, width: 230, height: 10,
-            child: pw.Text(
-              "Ph: $phone",
-              style: pw.TextStyle(fontSize: 7.5 * scale),
-            ),
-          ),
-          _positionedField(
-            posX: 22, posY: 88, width: 340, height: 10,
-            child: pw.Text(
-              "Email: $email   Web: $web",
-              style: pw.TextStyle(fontSize: 7.5 * scale),
-            ),
-          ),
-          _positionedField(
-            posX: 22, posY: 98, width: 340, height: 20,
-            child: pw.Text(
-              "Office Address : $address",
-              style: pw.TextStyle(fontSize: 7.5 * scale),
-            ),
-          ),
+          if (companySec.isVisible)
+            ...companyFields.map((f) {
+              final rawVal = fieldValues[f.id] ?? f.defaultValue;
+              final textVal = (f.id == 'company_name' || f.id == 'company_tagline')
+                  ? rawVal?.toString().toUpperCase() ?? ''
+                  : rawVal?.toString() ?? '';
+
+              final isCompName = f.id == 'company_name';
+              final isTagline = f.id == 'company_tagline';
+              final style = isCompName
+                  ? headerStyle
+                  : (isTagline ? subheaderStyle : bodyStyle);
+
+              return _positionedField(
+                posX: f.posX ?? 22.0,
+                posY: f.posY ?? 32.0,
+                width: f.width ?? 230.0,
+                height: f.height ?? 12.0,
+                child: pw.Text(
+                  textVal,
+                  style: _getPdfStyle(style, scale, forceBold: isCompName || isTagline),
+                ),
+              );
+            }).toList(),
 
           // Logo Middle
-          if (logoImage != null)
+          if (template.headerConfig.logoIsVisible && logoImage != null)
             _positionedField(
-              posX: TourismLayoutConfig.logoX,
-              posY: TourismLayoutConfig.logoY,
-              width: TourismLayoutConfig.logoWidth,
-              height: TourismLayoutConfig.logoHeight,
+              posX: layout.logoX,
+              posY: layout.logoY,
+              width: layout.logoWidth,
+              height: layout.logoHeight,
               child: pw.Image(logoImage),
             ),
 
           // Invoice Title
-          _positionedField(
-            posX: TourismLayoutConfig.invBoxX + 2,
-            posY: TourismLayoutConfig.invBoxY + 4,
-            width: TourismLayoutConfig.invBoxWidth - 4,
-            height: TourismLayoutConfig.invBoxHeaderHeight - 4,
-            child: pw.Align(
-              alignment: pw.Alignment.center,
-              child: pw.Text(
-                "INVOICE",
-                style: pw.TextStyle(
-                  color: PdfColors.white,
-                  fontWeight: pw.FontWeight.bold,
-                  fontSize: 10.0 * scale,
-                ),
-              ),
-            ),
-          ),
-
-          // Invoice Info fields
-          _invoiceInfoRow("Invoice No.", invoiceNo.toString(), 62),
-          _invoiceInfoRow("Invoice Date", invoiceDate.toString(), 73),
-          _invoiceInfoRow("Booking Ref.", bookingRef.toString(), 84),
-          _invoiceInfoRow("Booking Date", bookingDate.toString(), 95),
-          _invoiceInfoRow("PAN No.", companyPan.toString(), 106, isBold: true),
-          _invoiceInfoRow("GSTIN", companyGstIn.toString(), 117, isBold: true),
-
-          // BILL TO
-          _positionedField(
-            posX: 22, posY: 154, width: 100, height: 12,
-            child: pw.Text(
-              "BILL TO",
-              style: pw.TextStyle(fontSize: 8 * scale, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF499F34)),
-            ),
-          ),
-          _dottedFieldRow("Name / Company", customerName.toString(), 172),
-          _dottedFieldRow("Address", customerAddress.toString(), 186),
-          _dottedFieldRow("City / State / PIN", customerCityStatePin.toString(), 200),
-          _dottedFieldRow("GSTIN", customerGst.toString(), 214),
-          _dottedFieldRow("Contact No.", customerPhone.toString(), 228),
-
-          // SERVICE DETAIL
-          _positionedField(
-            posX: 300, posY: 154, width: 150, height: 12,
-            child: pw.Text(
-              "SERVICE DETAIL 8",
-              style: pw.TextStyle(fontSize: 8 * scale, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF499F34)),
-            ),
-          ),
-          _dottedFieldRow("Tour / Trip", tourTrip.toString(), 172, isRightCol: true),
-          _dottedFieldRow("Travel Date", travelDate.toString(), 186, isRightCol: true),
-          _dottedFieldRow("No. of Days", noOfDays.toString(), 200, isRightCol: true),
-          _dottedFieldRow("No. of Vehicles", noOfVehicles.toString(), 214, isRightCol: true),
-          _dottedFieldRow("Co-ordinator Name", coordinatorName.toString(), 228, isRightCol: true),
-
-          // Service Items Table
-          _positionedField(
-            posX: TourismLayoutConfig.leftMargin,
-            posY: TourismLayoutConfig.tableStartY,
-            width: TourismLayoutConfig.contentWidth,
-            height: tableHeight * scale,
-            child: pw.Table(
-              border: pw.TableBorder.all(color: PdfColors.black, width: 0.8 * scale),
-              columnWidths: Map.fromIterables(
-                Iterable<int>.generate(TourismLayoutConfig.tableColumnWidths.length),
-                TourismLayoutConfig.tableColumnWidths.map((w) => pw.FixedColumnWidth(w * scale)),
-              ),
-              children: [
-                pw.TableRow(
-                  decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF499F34)),
-                  children: TourismLayoutConfig.tableColumnLabels.map((lbl) => pw.Padding(
-                    padding: pw.EdgeInsets.symmetric(vertical: 4 * scale, horizontal: 1 * scale),
-                    child: pw.Text(
-                      lbl,
-                      style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 7.5 * scale),
-                      textAlign: pw.TextAlign.center,
-                    ),
-                  )).toList(),
-                ),
-                ...List.generate(items.length, (idx) {
-                  final item = items[idx];
-                  final itemDateStr = item.itemDate != null ? df.format(item.itemDate!) : '';
-                  return pw.TableRow(
-                    children: [
-                      _cellBody((idx + 1).toString(), align: pw.TextAlign.center),
-                      _cellBody(item.description),
-                      _cellBody(item.noOfVehicles?.toString() ?? '1', align: pw.TextAlign.center),
-                      _cellBody(itemDateStr, align: pw.TextAlign.center),
-                      _cellBody(item.fromTo ?? ''),
-                      _cellBody(item.quantityDays.toStringAsFixed(item.quantityDays % 1 == 0 ? 0 : 1), align: pw.TextAlign.center),
-                      _cellBody(simpleCurrencyFmt.format(item.rate), align: pw.TextAlign.right),
-                      _cellBody(simpleCurrencyFmt.format(item.amount), align: pw.TextAlign.right),
-                    ],
-                  );
-                }),
-              ],
-            ),
-          ),
-
-          // Totals Block
-          _totalsRow("Sub Total", simpleCurrencyFmt.format(invoice.subTotal), 0),
-          _totalsRow("CGST @ ${gstHalfRate.toStringAsFixed(gstHalfRate % 1 == 0 ? 0 : 1)}%", simpleCurrencyFmt.format(invoice.cgst), 1),
-          _totalsRow("SGST @ ${gstHalfRate.toStringAsFixed(gstHalfRate % 1 == 0 ? 0 : 1)}%", simpleCurrencyFmt.format(invoice.sgst), 2),
-          _totalsRow("Total Amount", simpleCurrencyFmt.format(invoice.grandTotal), 3, isTotalAmount: true),
-          _totalsRow("Advance Payment Received", simpleCurrencyFmt.format(invoice.advancePaid), 4),
-          _totalsRow("Amount To Be Paid", simpleCurrencyFmt.format(invoice.grandTotal - invoice.advancePaid), 5, isBold: true),
-
-          // Amount in Words
-          _positionedField(
-            posX: TourismLayoutConfig.wordsBoxX,
-            posY: wordsBoxY,
-            width: TourismLayoutConfig.wordsBoxWidth,
-            height: TourismLayoutConfig.wordsBoxHeight,
-            child: pw.Padding(
-              padding: pw.EdgeInsets.symmetric(horizontal: 6 * scale, vertical: 4 * scale),
-              child: pw.Text(
-                "Amount to be paid in words : ${invoice.amountPaidInWords.endsWith(' Only') ? '${invoice.amountPaidInWords}.' : (invoice.amountPaidInWords.endsWith(' Only.') ? invoice.amountPaidInWords : '${invoice.amountPaidInWords} Only.')}",
-                style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.0 * scale),
-              ),
-            ),
-          ),
-
-          // Footer Terms
-          _positionedField(
-            posX: 28, posY: footerTopLineY + 7, width: 170, height: 10,
-            child: pw.Text(
-              "TERM & CONDITION 8",
-              style: pw.TextStyle(fontSize: 8.0 * scale, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF499F34)),
-            ),
-          ),
-          _positionedField(
-            posX: 28, posY: footerTopLineY + 19, width: 170, height: 75,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: termsList.map((t) => pw.Padding(
-                padding: pw.EdgeInsets.symmetric(vertical: 0.5 * scale),
-                child: pw.Text(t, style: pw.TextStyle(fontSize: 6.5 * scale)),
-              )).toList(),
-            ),
-          ),
-
-          // Footer Bank details
-          _positionedField(
-            posX: 218, posY: footerTopLineY + 7, width: 155, height: 10,
-            child: pw.Text(
-              "BANK DETAIL 8",
-              style: pw.TextStyle(fontSize: 8.0 * scale, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF499F34)),
-            ),
-          ),
-          _bankItemRow("Aooount Name", bankAccountName.toString(), footerTopLineY + 19),
-          _bankItemRow("Bank Name", bankName.toString(), footerTopLineY + 30),
-          _bankItemRow("Aooount No.", bankAccountNo.toString(), footerTopLineY + 41),
-          _bankItemRow("IFSC Code", bankIfsc.toString(), footerTopLineY + 52),
-
-          // Footer Signatory
-          _positionedField(
-            posX: 388, posY: footerTopLineY + 7, width: 185, height: 10,
-            child: pw.Text(
-              "FOR $cName",
-              style: pw.TextStyle(fontSize: 7.5 * scale, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF0B3B60)),
-              textAlign: pw.TextAlign.center,
-            ),
-          ),
-          _positionedField(
-            posX: 388, posY: footerTopLineY + 19, width: 185, height: 20,
-            child: pw.Text(
-              "This is a computer-generated invoice.\nSubject to applicable laws of India.",
-              style: pw.TextStyle(fontSize: 6.0 * scale, color: PdfColor.fromInt(0xFF555555)),
-              textAlign: pw.TextAlign.center,
-            ),
-          ),
-
-          if (sigImage != null)
+          if (invoiceSec.isVisible)
             _positionedField(
-              posX: TourismLayoutConfig.sigBoxX,
-              posY: sigBoxY,
-              width: TourismLayoutConfig.sigBoxWidth,
-              height: TourismLayoutConfig.sigBoxHeight,
-              child: pw.Image(sigImage),
-            )
-          else
-            _positionedField(
-              posX: TourismLayoutConfig.sigBoxX,
-              posY: sigBoxY,
-              width: TourismLayoutConfig.sigBoxWidth,
-              height: TourismLayoutConfig.sigBoxHeight,
-              child: pw.Center(
+              posX: layout.invBoxX + 2,
+              posY: layout.invBoxY + 4,
+              width: layout.invBoxWidth - 4,
+              height: layout.invBoxHeaderHeight - 4,
+              child: pw.Align(
+                alignment: pw.Alignment.center,
                 child: pw.Text(
-                  "Abhishek Prajapati",
+                  "INVOICE",
                   style: pw.TextStyle(
-                    font: pw.Font.timesItalic(),
-                    fontSize: 11 * scale,
+                    color: PdfColors.white,
                     fontWeight: pw.FontWeight.bold,
-                    color: PdfColor.fromInt(0xFF1D4ED8),
+                    fontSize: 10.0 * scale,
                   ),
                 ),
               ),
             ),
 
-          _positionedField(
-            posX: 388, posY: signatoryTitleY, width: 185, height: 10,
-            child: pw.Text(
-              signatoryTitle.toString().toUpperCase(),
-              style: pw.TextStyle(fontSize: 7.0 * scale, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF0B3B60)),
-              textAlign: pw.TextAlign.center,
+          // Invoice Info fields
+          if (invoiceSec.isVisible)
+            ...invoiceFields.map((f) {
+              final rawVal = fieldValues[f.id] ?? f.defaultValue;
+              final textVal = _formatValue(rawVal, f.valueType);
+              final isBold = f.id == 'company_pan' || f.id == 'company_gst_in' || f.id == 'invoice_number';
+
+              return _invoiceInfoRow(f.label, textVal, f.posY ?? 62.0, isBold: isBold);
+            }).toList(),
+
+          // BILL TO Section title
+          if (customerSec.isVisible)
+            _positionedField(
+              posX: 22,
+              posY: layout.billToTopLineY + 4.0,
+              width: 100,
+              height: 12,
+              child: pw.Text(
+                customerSec.title,
+                style: _getPdfStyle(sectionTitleStyle, scale, forceBold: true),
+              ),
             ),
-          ),
+
+          if (customerSec.isVisible)
+            ...customerFields.map((f) {
+              final rawVal = fieldValues[f.id] ?? f.defaultValue;
+              final textVal = _formatValue(rawVal, f.valueType);
+              return _dottedFieldRow(f.label, textVal, f.posY ?? 172.0);
+            }).toList(),
+
+          // SERVICE DETAIL Title
+          if (serviceSec.isVisible)
+            _positionedField(
+              posX: layout.serviceColumnUnderlineX1,
+              posY: layout.billToTopLineY + 4.0,
+              width: 150,
+              height: 12,
+              child: pw.Text(
+                serviceSec.title,
+                style: _getPdfStyle(sectionTitleStyle, scale, forceBold: true),
+              ),
+            ),
+
+          if (serviceSec.isVisible)
+            ...serviceFields.map((f) {
+              final rawVal = fieldValues[f.id] ?? f.defaultValue;
+              final textVal = _formatValue(rawVal, f.valueType);
+              return _dottedFieldRow(f.label, textVal, f.posY ?? 172.0, isRightCol: true);
+            }).toList(),
+
+          // Service Items Table
+          if (template.sections.firstWhere((s) => s.id == 'items_table', orElse: () => SectionSchema(id: 'items_table', title: 'Items', orderIndex: 4, fields: [])).isVisible)
+            _positionedField(
+              posX: layout.leftMargin,
+              posY: layout.tableStartY,
+              width: layout.contentWidth,
+              height: layout.tableHeight * scale,
+              child: pw.Table(
+                border: pw.TableBorder.all(color: PdfColors.black, width: 0.8 * scale),
+                columnWidths: Map.fromIterables(
+                  Iterable<int>.generate(visibleCols.length),
+                  visibleCols.map((c) => pw.FixedColumnWidth(c.width * scale)),
+                ),
+                children: [
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF499F34)),
+                    children: visibleCols.map((col) => pw.Padding(
+                      padding: pw.EdgeInsets.symmetric(vertical: 4 * scale, horizontal: 1 * scale),
+                      child: pw.Text(
+                        col.label,
+                        style: pw.TextStyle(
+                          color: _parseColor(tableHeaderStyle.textColor),
+                          fontWeight: tableHeaderStyle.fontWeight == 'bold' ? pw.FontWeight.bold : pw.FontWeight.normal,
+                          fontSize: tableHeaderStyle.fontSize * scale,
+                          font: tableHeaderStyle.fontWeight == 'bold' ? _getFontBold(tableHeaderStyle.fontFamily) : _getFont(tableHeaderStyle.fontFamily),
+                        ),
+                        textAlign: pw.TextAlign.center,
+                      ),
+                    )).toList(),
+                  ),
+                  ...List.generate(items.length, (idx) {
+                    final item = items[idx];
+                    return pw.TableRow(
+                      children: visibleCols.map((col) {
+                        final cellText = _getItemCellText(item, col, idx, df, simpleCurrencyFmt);
+                        pw.TextAlign cellAlign = pw.TextAlign.left;
+                        if (col.id == 's_no' || col.id == 'no_of_vehicles' || col.id == 'date' || col.id == 'qty') {
+                          cellAlign = pw.TextAlign.center;
+                        } else if (col.id == 'rate' || col.id == 'amount') {
+                          cellAlign = pw.TextAlign.right;
+                        } else {
+                          cellAlign = col.alignment == 'right'
+                              ? pw.TextAlign.right
+                              : (col.alignment == 'center' ? pw.TextAlign.center : pw.TextAlign.left);
+                        }
+
+                        return _cellBody(cellText, align: cellAlign);
+                      }).toList(),
+                    );
+                  }),
+                ],
+              ),
+            ),
+
+          // Totals Block
+          if (template.sections.firstWhere((s) => s.id == 'tax_summary', orElse: () => SectionSchema(id: 'tax_summary', title: 'Totals', orderIndex: 5, fields: [])).isVisible) ...[
+            _totalsRow("Sub Total", simpleCurrencyFmt.format(invoice.subTotal), 0),
+            _totalsRow("CGST @ ${gstHalfRate.toStringAsFixed(gstHalfRate % 1 == 0 ? 0 : 1)}%", simpleCurrencyFmt.format(invoice.cgst), 1),
+            _totalsRow("SGST @ ${gstHalfRate.toStringAsFixed(gstHalfRate % 1 == 0 ? 0 : 1)}%", simpleCurrencyFmt.format(invoice.sgst), 2),
+            _totalsRow("Total Amount", simpleCurrencyFmt.format(invoice.grandTotal), 3, isTotalAmount: true),
+            _totalsRow("Advance Payment Received", simpleCurrencyFmt.format(invoice.advancePaid), 4),
+            _totalsRow("Amount To Be Paid", simpleCurrencyFmt.format(invoice.grandTotal - invoice.advancePaid), 5, isBold: true),
+
+            // Amount in Words
+            _positionedField(
+              posX: layout.wordsBoxX,
+              posY: wordsBoxY,
+              width: layout.wordsBoxWidth,
+              height: layout.wordsBoxHeight,
+              child: pw.Padding(
+                padding: pw.EdgeInsets.symmetric(horizontal: 6 * scale, vertical: 4 * scale),
+                child: pw.Text(
+                  "Amount to be paid in words : ${invoice.amountPaidInWords.endsWith(' Only') ? '${invoice.amountPaidInWords}.' : (invoice.amountPaidInWords.endsWith(' Only.') ? invoice.amountPaidInWords : '${invoice.amountPaidInWords} Only.')}",
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: bodyStyle.fontSize * scale,
+                    color: _parseColor(bodyStyle.textColor),
+                    font: _getFontBold(bodyStyle.fontFamily),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+          // Footer Children
+          ...footerChildren,
         ],
       ),
     );
   }
 
-  static pw.Widget _fieldRow(String label, String value, double scale, {double labelWidth = 75}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Container(
-            width: labelWidth * scale,
-            child: pw.Text(
-              "$label :",
-              style: pw.TextStyle(fontSize: 7 * scale, fontWeight: pw.FontWeight.bold),
-            ),
-          ),
-          pw.Expanded(
-            child: pw.Text(
-              value,
-              style: pw.TextStyle(fontSize: 7 * scale),
-            ),
-          ),
-        ],
-      ),
+  static String _getItemCellText(InvoiceItem item, TableColumnSchema col, int index, DateFormat df, NumberFormat simpleCurrencyFmt) {
+    String baseDesc = item.description;
+    Map<String, String> customVals = {};
+    try {
+      final decoded = jsonDecode(item.description) as Map<String, dynamic>;
+      if (decoded.containsKey('description')) {
+        baseDesc = decoded['description']?.toString() ?? '';
+        final custom = decoded['customValues'] as Map<String, dynamic>?;
+        if (custom != null) {
+          custom.forEach((k, v) {
+            customVals[k] = v.toString();
+          });
+        }
+      }
+    } catch (_) {}
+
+    if (col.id == 's_no') {
+      return (index + 1).toString();
+    } else if (col.id == 'description') {
+      return baseDesc;
+    } else if (col.id == 'no_of_vehicles') {
+      return item.noOfVehicles?.toString() ?? '1';
+    } else if (col.id == 'date') {
+      return item.itemDate != null ? df.format(item.itemDate!) : '';
+    } else if (col.id == 'from_to') {
+      return item.fromTo ?? '';
+    } else if (col.id == 'qty') {
+      return item.quantityDays.toStringAsFixed(item.quantityDays % 1 == 0 ? 0 : 1);
+    } else if (col.id == 'rate') {
+      return simpleCurrencyFmt.format(item.rate);
+    } else if (col.id == 'amount') {
+      return simpleCurrencyFmt.format(item.amount);
+    } else {
+      return customVals[col.id] ?? '';
+    }
+  }
+
+  static pw.Font _getFont(String fontFamily) {
+    if (fontFamily.toLowerCase() == 'courier') {
+      return pw.Font.courier();
+    } else if (fontFamily.toLowerCase() == 'helvetica' || fontFamily.toLowerCase() == 'arial') {
+      return pw.Font.helvetica();
+    } else {
+      return pw.Font.times();
+    }
+  }
+
+  static pw.Font _getFontBold(String fontFamily) {
+    if (fontFamily.toLowerCase() == 'courier') {
+      return pw.Font.courierBold();
+    } else if (fontFamily.toLowerCase() == 'helvetica' || fontFamily.toLowerCase() == 'arial') {
+      return pw.Font.helveticaBold();
+    } else {
+      return pw.Font.timesBold();
+    }
+  }
+
+  static pw.TextStyle _getPdfStyle(TextStyleSchema style, double scale, {bool forceBold = false}) {
+    final font = (style.fontWeight == 'bold' || forceBold)
+        ? _getFontBold(style.fontFamily)
+        : _getFont(style.fontFamily);
+    return pw.TextStyle(
+      font: font,
+      fontSize: style.fontSize * scale,
+      color: _parseColor(style.textColor),
+      lineSpacing: style.lineHeight,
+      letterSpacing: style.letterSpacing * scale,
     );
   }
 
-  static pw.Widget _dottedFieldRow(String label, String value, double scale, {double labelWidth = 75, bool isLast = false}) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 3),
-          child: pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Container(
-                width: labelWidth * scale,
-                child: pw.Text(
-                  "$label :",
-                  style: pw.TextStyle(fontSize: 7 * scale, fontWeight: pw.FontWeight.bold),
-                ),
-              ),
-              pw.Expanded(
-                child: pw.Text(
-                  value,
-                  style: pw.TextStyle(fontSize: 7 * scale),
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (!isLast)
-          pw.Container(
-            height: 0.5,
-            margin: const pw.EdgeInsets.only(bottom: 2),
-            decoration: const pw.BoxDecoration(
-              border: pw.Border(
-                bottom: pw.BorderSide(color: PdfColors.grey400, style: pw.BorderStyle.dashed, width: 0.5),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  static pw.TableRow _totalTableRow(String label, String value, double scale, {bool isBold = false}) {
-    return pw.TableRow(
-      children: [
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 3, horizontal: 4),
-          child: pw.Text(
-            label,
-            style: pw.TextStyle(
-              fontSize: 6.5 * scale,
-              fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
-            ),
-          ),
-        ),
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 3, horizontal: 4),
-          child: pw.Text(
-            "Rs. " + value,
-            style: pw.TextStyle(
-              fontSize: 6.5 * scale,
-              fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // --- Dynamic Section Layout Builders ---
+  // --- Dynamic Layout Block Builders for Standard / service / transport ---
 
   static pw.Widget _buildCompanyDetailsHeader(
+    InvoiceTemplateSchema template,
     SectionSchema sec,
     pw.ImageProvider? logoImage,
     Invoice invoice,
@@ -1051,75 +1115,73 @@ class PdfGeneratorService {
     double scale,
     DateFormat df,
   ) {
+    final headerStyle = template.typography['header'] ?? TextStyleSchema(fontSize: 16, fontWeight: 'bold', fontFamily: 'Helvetica', textColor: '#0B3B60');
+    final subheaderStyle = template.typography['subheader'] ?? TextStyleSchema(fontSize: 8, fontWeight: 'normal', fontFamily: 'Helvetica', textColor: '#555555');
+
+    final name = company.name;
+    final phone = company.contactNumber;
+    final email = company.email;
+    final address = company.address;
+    final web = 'www.lntourism.com';
+
+    final logoSize = template.headerConfig.logoSize;
     final primaryGreen = PdfColor.fromInt(0xFF499F34);
-    final deepBlue = PdfColor.fromInt(0xFF0B3B60);
-    final accentOrange = PdfColor.fromInt(0xFFE57A25);
 
     return pw.Container(
-      margin: pw.EdgeInsets.only(bottom: 12 * scale),
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          // Left: Company Profile Info
+          // Left: Company Info
           pw.Expanded(
             flex: 3,
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(
-                  company.name.toUpperCase(),
-                  style: pw.TextStyle(
-                    fontSize: 16 * scale,
-                    fontWeight: pw.FontWeight.bold,
-                    color: deepBlue,
-                  ),
+                  name.toUpperCase(),
+                  style: _getPdfStyle(headerStyle, scale),
                 ),
-                pw.Text(
-                  "TOURS & TRAVELS | CAR RENTAL | TRANSPORT SOLUTIONS",
-                  style: pw.TextStyle(
-                    fontSize: 7 * scale,
-                    fontWeight: pw.FontWeight.bold,
-                    color: accentOrange,
-                  ),
-                ),
-                pw.SizedBox(height: 6 * scale),
-                pw.Text("Ph: ${company.contactNumber}", style: pw.TextStyle(fontSize: 8 * scale)),
-                pw.Text("Email: ${company.email}", style: pw.TextStyle(fontSize: 8 * scale)),
-                pw.Text("Office Address: ${company.address}", style: pw.TextStyle(fontSize: 8 * scale)),
+                pw.SizedBox(height: 4 * scale),
+                pw.Text("Ph: $phone", style: _getPdfStyle(subheaderStyle, scale)),
+                pw.Text("Email: $email   Web: $web", style: _getPdfStyle(subheaderStyle, scale)),
+                pw.Text("Office Address: $address", style: _getPdfStyle(subheaderStyle, scale)),
               ],
             ),
           ),
           
           // Middle: Logo
-          pw.Expanded(
-            flex: 1,
-            child: pw.Column(
-              children: [
-                if (logoImage != null)
-                  pw.Image(logoImage, height: 35 * scale)
-                else
-                  pw.Container(
-                    height: 35 * scale,
-                    alignment: pw.Alignment.center,
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border.all(color: PdfColors.grey300),
-                      shape: pw.BoxShape.circle,
+          if (template.headerConfig.logoIsVisible)
+            pw.Expanded(
+              flex: 1,
+              child: pw.Column(
+                children: [
+                  if (logoImage != null)
+                    pw.Image(logoImage, height: 35 * scale * logoSize)
+                  else
+                    pw.Container(
+                      height: 35 * scale,
+                      alignment: pw.Alignment.center,
+                      decoration: const pw.BoxDecoration(
+                        border: pw.Border(
+                          bottom: pw.BorderSide(color: PdfColors.grey300),
+                        ),
+                        shape: pw.BoxShape.circle,
+                      ),
+                      child: pw.Text(
+                        company.name.isNotEmpty ? company.name[0] : 'L',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: primaryGreen, fontSize: 12 * scale),
+                      ),
                     ),
-                    child: pw.Text(
-                      company.name.isNotEmpty ? company.name[0] : 'L',
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: primaryGreen, fontSize: 12 * scale),
-                    ),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    "LN TOURISM",
+                    style: pw.TextStyle(fontSize: 7 * scale, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF0B3B60)),
                   ),
-                pw.SizedBox(height: 2),
-                pw.Text(
-                  "LN TOURISM",
-                  style: pw.TextStyle(fontSize: 7 * scale, fontWeight: pw.FontWeight.bold, color: deepBlue),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          // Right: Green Header box
+          // Right: Invoice Meta Box
           pw.Expanded(
             flex: 2,
             child: pw.Container(
@@ -1164,23 +1226,25 @@ class PdfGeneratorService {
   }
 
   static pw.Widget _buildCustomerDetailsBlock(
+    InvoiceTemplateSchema template,
     SectionSchema sec,
     Map<String, dynamic> values,
     double scale,
   ) {
-    final primaryGreen = PdfColor.fromInt(0xFF499F34);
-    final deepBlue = PdfColor.fromInt(0xFF0B3B60);
+    final sectionTitleStyle = template.typography['section_title'] ?? TextStyleSchema(fontSize: 8, fontWeight: 'bold', fontFamily: 'Helvetica', textColor: '#499F34');
+    final subsectionTitleStyle = template.typography['subsection_title'] ?? TextStyleSchema(fontSize: 8, fontWeight: 'bold', fontFamily: 'Helvetica', textColor: '#000000');
+    final bodyStyle = template.typography['body'] ?? TextStyleSchema(fontSize: 7.5, fontWeight: 'normal', fontFamily: 'Helvetica', textColor: '#000000');
 
+    final primaryGreen = PdfColor.fromInt(0xFF499F34);
     final visibleFields = sec.fields.where((f) => f.isVisible).toList();
 
     return pw.Container(
-      margin: pw.EdgeInsets.only(bottom: 8 * scale),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(
             sec.title.toUpperCase(),
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8 * scale, color: deepBlue),
+            style: _getPdfStyle(sectionTitleStyle, scale, forceBold: true),
           ),
           pw.Container(height: 1, color: primaryGreen, margin: pw.EdgeInsets.only(top: 1, bottom: 4 * scale)),
           pw.Wrap(
@@ -1189,7 +1253,6 @@ class PdfGeneratorService {
             children: visibleFields.map((f) {
               final rawVal = values[f.id];
               final valStr = rawVal != null ? _formatValue(rawVal, f.valueType) : '';
-              final color = _parseColor(f.textColor);
 
               return pw.Container(
                 width: 140 * scale,
@@ -1198,16 +1261,12 @@ class PdfGeneratorService {
                   children: [
                     pw.Text(
                       "${f.label}: ",
-                      style: pw.TextStyle(fontSize: (f.fontSize - 1) * scale, fontWeight: pw.FontWeight.bold, color: color),
+                      style: _getPdfStyle(subsectionTitleStyle, scale, forceBold: true),
                     ),
                     pw.Expanded(
                       child: pw.Text(
                         valStr,
-                        style: pw.TextStyle(
-                          fontSize: (f.fontSize - 1) * scale,
-                          fontWeight: f.fontWeight == 'bold' ? pw.FontWeight.bold : pw.FontWeight.normal,
-                          color: color,
-                        ),
+                        style: _getPdfStyle(bodyStyle, scale),
                       ),
                     ),
                   ],
@@ -1221,24 +1280,26 @@ class PdfGeneratorService {
   }
 
   static pw.Widget _buildInvoiceMetaGrid(
+    InvoiceTemplateSchema template,
     SectionSchema sec,
     Map<String, dynamic> values,
     double scale,
     DateFormat df,
   ) {
-    final primaryGreen = PdfColor.fromInt(0xFF499F34);
-    final deepBlue = PdfColor.fromInt(0xFF0B3B60);
+    final sectionTitleStyle = template.typography['section_title'] ?? TextStyleSchema(fontSize: 8, fontWeight: 'bold', fontFamily: 'Helvetica', textColor: '#499F34');
+    final subsectionTitleStyle = template.typography['subsection_title'] ?? TextStyleSchema(fontSize: 8, fontWeight: 'bold', fontFamily: 'Helvetica', textColor: '#000000');
+    final bodyStyle = template.typography['body'] ?? TextStyleSchema(fontSize: 7.5, fontWeight: 'normal', fontFamily: 'Helvetica', textColor: '#000000');
 
+    final primaryGreen = PdfColor.fromInt(0xFF499F34);
     final visibleFields = sec.fields.where((f) => f.isVisible).toList();
 
     return pw.Container(
-      margin: pw.EdgeInsets.only(bottom: 10 * scale),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(
             sec.title.toUpperCase(),
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8 * scale, color: deepBlue),
+            style: _getPdfStyle(sectionTitleStyle, scale, forceBold: true),
           ),
           pw.Container(height: 1, color: primaryGreen, margin: pw.EdgeInsets.only(top: 1, bottom: 4 * scale)),
           pw.Wrap(
@@ -1247,7 +1308,6 @@ class PdfGeneratorService {
             children: visibleFields.map((f) {
               final rawVal = values[f.id];
               final valStr = rawVal != null ? _formatValue(rawVal, f.valueType) : '';
-              final color = _parseColor(f.textColor);
 
               return pw.Container(
                 width: 160 * scale,
@@ -1256,16 +1316,12 @@ class PdfGeneratorService {
                   children: [
                     pw.Text(
                       "${f.label}: ",
-                      style: pw.TextStyle(fontSize: (f.fontSize - 1) * scale, fontWeight: pw.FontWeight.bold, color: color),
+                      style: _getPdfStyle(subsectionTitleStyle, scale, forceBold: true),
                     ),
                     pw.Expanded(
                       child: pw.Text(
                         valStr,
-                        style: pw.TextStyle(
-                          fontSize: (f.fontSize - 1) * scale,
-                          fontWeight: f.fontWeight == 'bold' ? pw.FontWeight.bold : pw.FontWeight.normal,
-                          color: color,
-                        ),
+                        style: _getPdfStyle(bodyStyle, scale),
                       ),
                     ),
                   ],
@@ -1279,59 +1335,25 @@ class PdfGeneratorService {
   }
 
   static pw.Widget _buildDynamicItemsTable(
-    String templateType,
+    InvoiceTemplateSchema template,
     List<InvoiceItem> items,
     double scale,
     DateFormat df,
     NumberFormat simpleCurrencyFmt,
   ) {
     final primaryGreen = PdfColor.fromInt(0xFF499F34);
+    final visibleCols = template.tableColumns.where((c) => c.isVisible).toList()
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
-    final isTourism = templateType == 'tourism';
-    final isTransport = templateType == 'transport';
-
-    // Map columns depending on template layout
-    List<String> headers;
-    Map<int, pw.TableColumnWidth> columnWidths;
-
-    if (isTourism) {
-      headers = ["S No.", "Description of Service", "Vehicles", "Date", "Route / From-To", "Days", "Rate (Rs.)", "Amt (Rs.)"];
-      columnWidths = {
-        0: const pw.FixedColumnWidth(25),
-        1: const pw.FlexColumnWidth(3),
-        2: const pw.FixedColumnWidth(40),
-        3: const pw.FixedColumnWidth(45),
-        4: const pw.FlexColumnWidth(2),
-        5: const pw.FixedColumnWidth(35),
-        6: const pw.FixedColumnWidth(45),
-        7: const pw.FixedColumnWidth(50),
-      };
-    } else if (isTransport) {
-      headers = ["S No.", "Service Description", "Vehicle No", "Delivery Date", "Route", "Qty", "Rate (Rs.)", "Amt (Rs.)"];
-      columnWidths = {
-        0: const pw.FixedColumnWidth(25),
-        1: const pw.FlexColumnWidth(3),
-        2: const pw.FixedColumnWidth(55),
-        3: const pw.FixedColumnWidth(45),
-        4: const pw.FlexColumnWidth(2),
-        5: const pw.FixedColumnWidth(35),
-        6: const pw.FixedColumnWidth(45),
-        7: const pw.FixedColumnWidth(50),
-      };
-    } else {
-      // Standard / Service
-      headers = ["S No.", "Description of Goods / Services", "Qty", "Rate (Rs.)", "Amt (Rs.)"];
-      columnWidths = {
-        0: const pw.FixedColumnWidth(30),
-        1: const pw.FlexColumnWidth(4),
-        2: const pw.FixedColumnWidth(50),
-        3: const pw.FixedColumnWidth(60),
-        4: const pw.FixedColumnWidth(70),
-      };
+    final Map<int, pw.TableColumnWidth> columnWidths = {};
+    for (int i = 0; i < visibleCols.length; i++) {
+      columnWidths[i] = pw.FixedColumnWidth(visibleCols[i].width * scale);
     }
 
+    final tableHeaderStyle = template.typography['table_header'] ?? TextStyleSchema(fontSize: 7.5, fontWeight: 'bold', fontFamily: 'Helvetica', textColor: '#FFFFFF');
+    final tableDataStyle = template.typography['table_data'] ?? TextStyleSchema(fontSize: 7.5, fontWeight: 'normal', fontFamily: 'Helvetica', textColor: '#000000');
+
     return pw.Container(
-      margin: pw.EdgeInsets.only(bottom: 8 * scale),
       child: pw.Table(
         border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
         columnWidths: columnWidths,
@@ -1339,51 +1361,51 @@ class PdfGeneratorService {
           // Table Header
           pw.TableRow(
             decoration: pw.BoxDecoration(color: primaryGreen),
-            children: headers.map((h) => _cellHeader(h, scale)).toList(),
+            children: visibleCols.map((c) => pw.Padding(
+              padding: const pw.EdgeInsets.all(3),
+              child: pw.Text(
+                c.label,
+                style: pw.TextStyle(
+                  color: _parseColor(tableHeaderStyle.textColor),
+                  fontWeight: tableHeaderStyle.fontWeight == 'bold' ? pw.FontWeight.bold : pw.FontWeight.normal,
+                  fontSize: tableHeaderStyle.fontSize * scale,
+                  font: tableHeaderStyle.fontWeight == 'bold' ? _getFontBold(tableHeaderStyle.fontFamily) : _getFont(tableHeaderStyle.fontFamily),
+                ),
+                textAlign: pw.TextAlign.center,
+              ),
+            )).toList(),
           ),
           
-          // Table Body (Only display rows containing actual data, no empty filler rows)
+          // Table Body
           ...List.generate(
             items.length,
             (index) {
               final item = items[index];
-              if (isTourism) {
-                return pw.TableRow(
-                  children: [
-                    _cellBody((index + 1).toString(), scale, align: pw.TextAlign.center),
-                    _cellBody(item.description, scale),
-                    _cellBody(item.noOfVehicles?.toString() ?? '1', scale, align: pw.TextAlign.center),
-                    _cellBody(item.itemDate != null ? df.format(item.itemDate!) : '', scale, align: pw.TextAlign.center),
-                    _cellBody(item.fromTo ?? '', scale),
-                    _cellBody(item.quantityDays.toString(), scale, align: pw.TextAlign.center),
-                    _cellBody(simpleCurrencyFmt.format(item.rate), scale, align: pw.TextAlign.right),
-                    _cellBody(simpleCurrencyFmt.format(item.amount), scale, align: pw.TextAlign.right),
-                  ],
-                );
-              } else if (isTransport) {
-                return pw.TableRow(
-                  children: [
-                    _cellBody((index + 1).toString(), scale, align: pw.TextAlign.center),
-                    _cellBody(item.description, scale),
-                    _cellBody(item.noOfVehicles?.toString() ?? '', scale, align: pw.TextAlign.center), // Vehicle count maps to NoOfVehicles column mapping
-                    _cellBody(item.itemDate != null ? df.format(item.itemDate!) : '', scale, align: pw.TextAlign.center),
-                    _cellBody(item.fromTo ?? '', scale),
-                    _cellBody(item.quantityDays.toString(), scale, align: pw.TextAlign.center),
-                    _cellBody(simpleCurrencyFmt.format(item.rate), scale, align: pw.TextAlign.right),
-                    _cellBody(simpleCurrencyFmt.format(item.amount), scale, align: pw.TextAlign.right),
-                  ],
-                );
-              } else {
-                return pw.TableRow(
-                  children: [
-                    _cellBody((index + 1).toString(), scale, align: pw.TextAlign.center),
-                    _cellBody(item.description, scale),
-                    _cellBody(item.quantityDays.toString(), scale, align: pw.TextAlign.center),
-                    _cellBody(simpleCurrencyFmt.format(item.rate), scale, align: pw.TextAlign.right),
-                    _cellBody(simpleCurrencyFmt.format(item.amount), scale, align: pw.TextAlign.right),
-                  ],
-                );
-              }
+              return pw.TableRow(
+                children: visibleCols.map((col) {
+                  final cellText = _getItemCellText(item, col, index, df, simpleCurrencyFmt);
+                  pw.TextAlign cellAlign = pw.TextAlign.left;
+
+                  if (col.id == 's_no' || col.id == 'no_of_vehicles' || col.id == 'date' || col.id == 'qty') {
+                    cellAlign = pw.TextAlign.center;
+                  } else if (col.id == 'rate' || col.id == 'amount') {
+                    cellAlign = pw.TextAlign.right;
+                  } else {
+                    cellAlign = col.alignment == 'right'
+                        ? pw.TextAlign.right
+                        : (col.alignment == 'center' ? pw.TextAlign.center : pw.TextAlign.left);
+                  }
+
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+                    child: pw.Text(
+                      cellText,
+                      style: _getPdfStyle(tableDataStyle, scale),
+                      textAlign: cellAlign,
+                    ),
+                  );
+                }).toList(),
+              );
             },
           ),
         ],
@@ -1392,13 +1414,15 @@ class PdfGeneratorService {
   }
 
   static pw.Widget _buildTaxSummaryBlock(
+    InvoiceTemplateSchema template,
     Invoice invoice,
     double scale,
     NumberFormat simpleCurrencyFmt,
     NumberFormat currencyFmt,
   ) {
+    final tableDataStyle = template.typography['table_data'] ?? TextStyleSchema(fontSize: 7.5, fontWeight: 'normal', fontFamily: 'Helvetica', textColor: '#000000');
+
     return pw.Container(
-      margin: pw.EdgeInsets.only(bottom: 6 * scale),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.end,
         children: [
@@ -1406,9 +1430,9 @@ class PdfGeneratorService {
             width: 180 * scale,
             child: pw.Column(
               children: [
-                _totalRow("Sub Total", simpleCurrencyFmt.format(invoice.subTotal), scale),
-                _totalRow("CGST", simpleCurrencyFmt.format(invoice.cgst), scale),
-                _totalRow("SGST", simpleCurrencyFmt.format(invoice.sgst), scale),
+                _totalRow("Sub Total", simpleCurrencyFmt.format(invoice.subTotal), scale, style: tableDataStyle),
+                _totalRow("CGST", simpleCurrencyFmt.format(invoice.cgst), scale, style: tableDataStyle),
+                _totalRow("SGST", simpleCurrencyFmt.format(invoice.sgst), scale, style: tableDataStyle),
                 
                 // Total Amount Box
                 pw.Container(
@@ -1429,9 +1453,9 @@ class PdfGeneratorService {
                   ),
                 ),
                 
-                _totalRow("Advance Paid", simpleCurrencyFmt.format(invoice.advancePaid), scale),
+                _totalRow("Advance Paid", simpleCurrencyFmt.format(invoice.advancePaid), scale, style: tableDataStyle),
                 pw.Container(height: 0.5, color: PdfColors.black),
-                _totalRow("Amount To Be Paid", simpleCurrencyFmt.format(invoice.grandTotal - invoice.advancePaid), scale, isBold: true),
+                _totalRow("Amount To Be Paid", simpleCurrencyFmt.format(invoice.grandTotal - invoice.advancePaid), scale, isBold: true, style: tableDataStyle),
               ],
             ),
           ),
@@ -1441,6 +1465,7 @@ class PdfGeneratorService {
   }
 
   static pw.Widget _buildPaymentInfoBlock(
+    InvoiceTemplateSchema template,
     SectionSchema sec,
     CompanyProfile company,
     Invoice invoice,
@@ -1449,10 +1474,10 @@ class PdfGeneratorService {
     NumberFormat currencyFmt,
   ) {
     final primaryGreen = PdfColor.fromInt(0xFF499F34);
-    final deepBlue = PdfColor.fromInt(0xFF0B3B60);
+    final sectionTitleStyle = template.typography['section_title'] ?? TextStyleSchema(fontSize: 8, fontWeight: 'bold', fontFamily: 'Helvetica', textColor: '#499F34');
+    final footerStyle = template.typography['footer'] ?? TextStyleSchema(fontSize: 6.5, fontWeight: 'normal', fontFamily: 'Helvetica', textColor: '#000000');
 
     return pw.Container(
-      margin: pw.EdgeInsets.only(bottom: 8 * scale),
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
@@ -1466,30 +1491,29 @@ class PdfGeneratorService {
                 pw.SizedBox(height: 2),
                 pw.Text(
                   sec.title.toUpperCase(),
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7 * scale, color: deepBlue),
+                  style: _getPdfStyle(sectionTitleStyle, scale, forceBold: true),
                 ),
                 pw.SizedBox(height: 4 * scale),
-                _bankItem("Account Name", company.bankAccountName, scale),
-                _bankItem("Bank Name", company.bankName, scale),
-                _bankItem("Account No", company.bankAccountNumber, scale),
-                _bankItem("IFSC Code", company.bankIfscCode, scale),
+                _bankItem("Account Name", company.bankAccountName, scale, style: footerStyle),
+                _bankItem("Bank Name", company.bankName, scale, style: footerStyle),
+                _bankItem("Account No", company.bankAccountNumber, scale, style: footerStyle),
+                _bankItem("IFSC Code", company.bankIfscCode, scale, style: footerStyle),
                 pw.SizedBox(height: 6 * scale),
                 pw.Text(
                   "Amount to be paid in words: ${invoice.amountPaidInWords}",
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7 * scale),
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: footerStyle.fontSize * scale, font: _getFontBold(footerStyle.fontFamily)),
                 ),
               ],
             ),
           ),
           
-          // Right: Dynamic QR Code and Barcode (satisfying visual layout designer options)
+          // Right: Dynamic QR Code and Barcode
           pw.Expanded(
             flex: 1,
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.end,
               crossAxisAlignment: pw.CrossAxisAlignment.center,
               children: [
-                // QR code representing payment details
                 pw.Container(
                   height: 45 * scale,
                   width: 45 * scale,
@@ -1499,7 +1523,6 @@ class PdfGeneratorService {
                   ),
                 ),
                 pw.SizedBox(width: 8 * scale),
-                // Barcode representing Invoice ID
                 pw.Container(
                   height: 35 * scale,
                   width: 60 * scale,
@@ -1517,16 +1540,16 @@ class PdfGeneratorService {
     );
   }
 
-  static pw.Widget _buildTermsConditionsBlock(SectionSchema sec, double scale) {
+  static pw.Widget _buildTermsConditionsBlock(InvoiceTemplateSchema template, SectionSchema sec, double scale) {
     final primaryGreen = PdfColor.fromInt(0xFF499F34);
-    final deepBlue = PdfColor.fromInt(0xFF0B3B60);
+    final sectionTitleStyle = template.typography['section_title'] ?? TextStyleSchema(fontSize: 8, fontWeight: 'bold', fontFamily: 'Helvetica', textColor: '#499F34');
+    final footerStyle = template.typography['footer'] ?? TextStyleSchema(fontSize: 6.5, fontWeight: 'normal', fontFamily: 'Helvetica', textColor: '#000000');
 
     final field = sec.fields.firstWhere((f) => f.id == 'terms_text', orElse: () => FieldSchema(id: 'terms_text', label: 'Terms', valueType: 'text'));
     final termsString = field.defaultValue?.toString() ?? '1. Subject to local jurisdiction.\n2. E&OE.';
     final termsList = termsString.split('\n');
 
     return pw.Container(
-      margin: pw.EdgeInsets.only(bottom: 8 * scale),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
@@ -1534,29 +1557,33 @@ class PdfGeneratorService {
           pw.SizedBox(height: 2),
           pw.Text(
             sec.title.toUpperCase(),
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7 * scale, color: deepBlue),
+            style: _getPdfStyle(sectionTitleStyle, scale, forceBold: true),
           ),
           pw.SizedBox(height: 4 * scale),
-          ...termsList.map((term) => _termItem(term, scale)).toList(),
+          ...termsList.map((term) => pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 1),
+            child: pw.Text(term, style: _getPdfStyle(footerStyle, scale)),
+          )).toList(),
         ],
       ),
     );
   }
 
   static pw.Widget _buildSignatureBlock(
+    InvoiceTemplateSchema template,
     SectionSchema sec,
     CompanyProfile company,
     pw.ImageProvider? sigImage,
     double scale,
   ) {
     final primaryGreen = PdfColor.fromInt(0xFF499F34);
-    final deepBlue = PdfColor.fromInt(0xFF0B3B60);
+    final sectionTitleStyle = template.typography['section_title'] ?? TextStyleSchema(fontSize: 8, fontWeight: 'bold', fontFamily: 'Helvetica', textColor: '#499F34');
+    final footerStyle = template.typography['footer'] ?? TextStyleSchema(fontSize: 6.5, fontWeight: 'normal', fontFamily: 'Helvetica', textColor: '#000000');
 
     final field = sec.fields.firstWhere((f) => f.id == 'signatory_title', orElse: () => FieldSchema(id: 'signatory_title', label: 'Title', valueType: 'text'));
     final title = field.defaultValue?.toString() ?? 'AUTHORIZED SIGNATORY';
 
     return pw.Container(
-      margin: pw.EdgeInsets.only(top: 8 * scale),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.end,
         children: [
@@ -1569,7 +1596,7 @@ class PdfGeneratorService {
                 pw.SizedBox(height: 2),
                 pw.Text(
                   "FOR ${company.name.toUpperCase()}",
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7 * scale, color: deepBlue),
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7 * scale, color: PdfColor.fromInt(0xFF0B3B60)),
                 ),
                 pw.SizedBox(height: 2),
                 
@@ -1585,14 +1612,14 @@ class PdfGeneratorService {
                             fontSize: 9 * scale,
                             fontWeight: pw.FontWeight.bold,
                             fontStyle: pw.FontStyle.italic,
-                            color: deepBlue,
+                            color: PdfColor.fromInt(0xFF0B3B60),
                           ),
                         ),
                 ),
                 pw.Container(height: 0.5, color: PdfColors.grey400, margin: const pw.EdgeInsets.symmetric(vertical: 2)),
                 pw.Text(
                   title.toUpperCase(),
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6 * scale, color: deepBlue),
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6 * scale, color: PdfColor.fromInt(0xFF0B3B60)),
                 ),
               ],
             ),
@@ -1602,7 +1629,7 @@ class PdfGeneratorService {
     );
   }
 
-  // --- Static Formatter / Colors Helpers ---
+  // --- Helpers ---
 
   static String _formatValue(dynamic val, String type) {
     if (val == null) return '';
@@ -1648,29 +1675,7 @@ class PdfGeneratorService {
     );
   }
 
-  static pw.Widget _cellHeader(String text, double scale) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.all(3),
-      child: pw.Text(
-        text,
-        style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 6.5 * scale),
-        textAlign: pw.TextAlign.center,
-      ),
-    );
-  }
-
-  static pw.Widget _cellBody(String text, double scale, {pw.TextAlign align = pw.TextAlign.left}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-      child: pw.Text(
-        text,
-        style: pw.TextStyle(fontSize: 6.5 * scale),
-        textAlign: align,
-      ),
-    );
-  }
-
-  static pw.Widget _totalRow(String label, String value, double scale, {bool isBold = false}) {
+  static pw.Widget _totalRow(String label, String value, double scale, {bool isBold = false, required TextStyleSchema style}) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 1.5, horizontal: 4),
       child: pw.Row(
@@ -1678,11 +1683,11 @@ class PdfGeneratorService {
         children: [
           pw.Text(
             label,
-            style: pw.TextStyle(fontSize: 7 * scale, fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal),
+            style: pw.TextStyle(fontSize: style.fontSize * scale, fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal, font: isBold ? _getFontBold(style.fontFamily) : _getFont(style.fontFamily)),
           ),
           pw.Text(
             value,
-            style: pw.TextStyle(fontSize: 7 * scale, fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal),
+            style: pw.TextStyle(fontSize: style.fontSize * scale, fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal, font: isBold ? _getFontBold(style.fontFamily) : _getFont(style.fontFamily)),
           ),
         ],
       ),
@@ -1699,7 +1704,7 @@ class PdfGeneratorService {
     );
   }
 
-  static pw.Widget _bankItem(String label, String value, double scale) {
+  static pw.Widget _bankItem(String label, String value, double scale, {required TextStyleSchema style}) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 1),
       child: pw.Row(
@@ -1708,12 +1713,12 @@ class PdfGeneratorService {
             width: 50 * scale,
             child: pw.Text(
               "$label:",
-              style: pw.TextStyle(fontSize: 5.5 * scale, fontWeight: pw.FontWeight.bold),
+              style: pw.TextStyle(fontSize: style.fontSize * scale, fontWeight: pw.FontWeight.bold, font: _getFontBold(style.fontFamily)),
             ),
           ),
           pw.Text(
             value,
-            style: pw.TextStyle(fontSize: 5.5 * scale),
+            style: _getPdfStyle(style, scale),
           ),
         ],
       ),

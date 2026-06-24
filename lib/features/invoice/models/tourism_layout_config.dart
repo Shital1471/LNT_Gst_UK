@@ -1,87 +1,92 @@
+import 'invoice_template_schema.dart';
+
 class TourismLayoutConfig {
-  static const double pageWidth = 595.27;
-  static const double pageHeight = 841.89;
-  static const double leftMargin = 22.0;
-  static const double rightMargin = 22.0;
-  static const double contentWidth = 551.27; // pageWidth - 2 * 22.0
+  final InvoiceTemplateSchema template;
+  final int itemCount;
+
+  TourismLayoutConfig(this.template, this.itemCount);
+
+  // Static Fallback Constants for baseline settings
+  static const double basePageWidth = 595.27;
+  static const double basePageHeight = 841.89;
+  static const double baseLeftMargin = 22.0;
+  static const double baseRightMargin = 22.0;
+  
+  // Dynamic page measurements
+  double get pageWidth => template.pageWidth;
+  double get pageHeight => template.pageHeight;
+  double get leftMargin => template.marginLeft;
+  double get rightMargin => template.marginRight;
+  double get contentWidth => pageWidth - leftMargin - rightMargin;
+
+  // Margins and Gaps
+  double get sectionGap => template.sectionGap;
+  double get tableGap => template.tableGap;
+  double get footerGap => template.footerGap;
 
   // 1. Header Section
-  static const double headerTopLineY = 30.0;
-  static const double headerBottomLineY = 140.0;
-  static const double headerDividerX = 380.0;
-
-  static const double logoX = 260.0;
-  static const double logoY = 38.0;
-  static const double logoWidth = 100.0;
-  static const double logoHeight = 45.0;
+  double get headerTopLineY => template.marginTop;
+  double get headerHeight => template.headerConfig.headerHeight;
+  double get headerBottomLineY => headerTopLineY + headerHeight;
+  
+  // Header dividers and widths
+  double get headerDividerX => leftMargin + (contentWidth * 0.65);
+  double get logoX => leftMargin + (contentWidth * 0.43);
+  double get logoY => headerTopLineY + 8.0;
+  double get logoWidth => 100.0 * template.headerConfig.logoSize;
+  double get logoHeight => 45.0 * template.headerConfig.logoSize;
 
   // Invoice Box
-  static const double invBoxX = 392.0;
-  static const double invBoxY = 42.0;
-  static const double invBoxWidth = 181.0;
-  static const double invBoxHeight = 88.0;
-  static const double invBoxHeaderHeight = 20.0;
+  double get invBoxX => headerDividerX + 12.0;
+  double get invBoxY => headerTopLineY + 12.0;
+  double get invBoxWidth => contentWidth - (invBoxX - leftMargin);
+  double get invBoxHeight => headerHeight - 22.0;
+  double get invBoxHeaderHeight => 20.0;
 
   // 2. Bill To & Service Details Section
-  static const double billToTopLineY = 150.0;
-  static const double billToBottomLineY = 262.0;
+  double get billToTopLineY => headerBottomLineY + sectionGap;
+  double get billToHeight => 112.0;
+  double get billToBottomLineY => billToTopLineY + billToHeight;
 
-  static const double billToColumnUnderlineX1 = 22.0;
-  static const double billToColumnUnderlineX2 = 285.0;
-  static const double billToColumnUnderlineY = 168.0;
+  double get billToColumnUnderlineX1 => leftMargin;
+  double get billToColumnUnderlineX2 => leftMargin + (contentWidth * 0.48);
+  double get billToColumnUnderlineY => billToTopLineY + 18.0;
 
-  static const double serviceColumnUnderlineX1 = 300.0;
-  static const double serviceColumnUnderlineX2 = 573.27;
-  static const double serviceColumnUnderlineY = 168.0;
+  double get serviceColumnUnderlineX1 => leftMargin + (contentWidth * 0.50);
+  double get serviceColumnUnderlineX2 => pageWidth - rightMargin;
+  double get serviceColumnUnderlineY => billToTopLineY + 18.0;
 
   // 3. Service Items Table
-  static const double tableStartY = 275.0;
-  static const double tableRowHeight = 20.0;
-  static const List<double> tableColumnWidths = [
-    25.0,   // S No.
-    135.0,  // Description of Service
-    55.0,   // No. of Vehicles
-    65.0,   // Date
-    110.0,  // From-To
-    41.27,  // Qty/Days
-    55.0,   // Rate
-    65.0,   // Amt
-  ];
-
-  static const List<String> tableColumnLabels = [
-    "S No.",
-    "Description of Service",
-    "No. of Vehicles",
-    "Date",
-    "From-To",
-    "Qty/Days",
-    "Rate (Rs.)",
-    "Amt (Rs.)"
-  ];
+  double get tableStartY => billToBottomLineY + sectionGap;
+  double get tableHeaderHeight => 20.0;
+  double get tableRowHeight => 20.0;
+  double get tableHeight => tableHeaderHeight + itemCount * tableRowHeight;
+  double get tableEndY => tableStartY + tableHeight;
 
   // 4. Totals & Words Block
-  static const double totalsBoxX = 343.27;
-  static const double totalsBoxY = 425.0;
-  static const double totalsBoxWidth = 230.0;
-  static const double totalsBoxHeight = 90.0;
-  static const double totalsRowHeight = 15.0;
-  static const double totalsBoxDividerX = 482.0;
+  double get totalsBoxX => leftMargin + (contentWidth * 0.58);
+  double get totalsBoxY => tableEndY + tableGap;
+  double get totalsBoxWidth => contentWidth * 0.42;
+  double get totalsBoxHeight => 90.0;
+  double get totalsRowHeight => 15.0;
+  double get totalsBoxDividerX => totalsBoxX + (totalsBoxWidth * 0.60);
 
-  static const double wordsBoxX = 22.0;
-  static const double wordsBoxY = 525.0;
-  static const double wordsBoxWidth = 551.27;
-  static const double wordsBoxHeight = 20.0;
+  double get wordsBoxX => leftMargin;
+  double get wordsBoxY => totalsBoxY + totalsBoxHeight + sectionGap;
+  double get wordsBoxWidth => contentWidth;
+  double get wordsBoxHeight => 20.0;
+  double get wordsBoxEndY => wordsBoxY + wordsBoxHeight;
 
   // 5. Footer Section
-  static const double footerTopLineY = 555.0;
-  static const double footerBottomLineY = 680.0;
-  static const double footerDivider1X = 210.0;
-  static const double footerDivider2X = 380.0;
+  double get footerTopLineY => wordsBoxEndY + footerGap;
+  double get footerHeight => 125.0;
+  double get footerBottomLineY => footerTopLineY + footerHeight;
 
   // Signature
-  static const double sigBoxX = 420.0;
-  static const double sigBoxY = 598.0;
-  static const double sigBoxWidth = 120.0;
-  static const double sigBoxHeight = 40.0;
-  static const double sigUnderlineY = 642.0;
+  double get sigBoxX => leftMargin + (contentWidth * 0.72);
+  double get sigBoxY => footerTopLineY + 43.0;
+  double get sigBoxWidth => contentWidth * 0.22;
+  double get sigBoxHeight => 40.0;
+  double get sigUnderlineY => footerTopLineY + 87.0;
+  double get signatoryTitleY => footerTopLineY + 93.0;
 }

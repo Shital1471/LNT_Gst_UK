@@ -141,6 +141,30 @@ class InvoiceFormNotifier extends StateNotifier<InvoiceFormState> {
     }
     
     state = state.copyWith(activeTemplate: template, fieldValues: newValues);
+
+    // Write to the SQLite database in the background to persist modifications
+    _db.transaction(() async {
+      final existing = await (_db.select(_db.invoiceTemplates)
+            ..where((row) => row.name.equals(template.name)))
+          .getSingleOrNull();
+
+      if (existing != null) {
+        await (_db.update(_db.invoiceTemplates)..where((row) => row.id.equals(existing.id))).write(
+          InvoiceTemplatesCompanion(
+            schemaJson: Value(jsonEncode(template.toJson())),
+          ),
+        );
+      } else {
+        await _db.into(_db.invoiceTemplates).insert(
+          InvoiceTemplatesCompanion.insert(
+            name: template.name,
+            description: Value(template.description),
+            schemaJson: jsonEncode(template.toJson()),
+            createdDate: DateTime.now(),
+          ),
+        );
+      }
+    });
   }
 
   void addItem(InvoiceFormItem item) {
@@ -222,14 +246,32 @@ class InvoiceFormNotifier extends StateNotifier<InvoiceFormState> {
     state = InvoiceFormState(
       activeTemplate: activeT,
       fieldValues: values,
-      items: items.map((i) => InvoiceFormItem(
-        description: i.description,
-        noOfVehicles: i.noOfVehicles,
-        date: i.itemDate,
-        fromTo: i.fromTo,
-        quantityDays: i.quantityDays,
-        rate: i.rate,
-      )).toList(),
+      items: items.map((i) {
+        String desc = i.description;
+        Map<String, String> customVals = {};
+        try {
+          final decoded = jsonDecode(i.description) as Map<String, dynamic>;
+          if (decoded.containsKey('description')) {
+            desc = decoded['description']?.toString() ?? '';
+            final custom = decoded['customValues'] as Map<String, dynamic>?;
+            if (custom != null) {
+              custom.forEach((k, v) {
+                customVals[k] = v.toString();
+              });
+            }
+          }
+        } catch (_) {}
+
+        return InvoiceFormItem(
+          description: desc,
+          noOfVehicles: i.noOfVehicles,
+          date: i.itemDate,
+          fromTo: i.fromTo,
+          quantityDays: i.quantityDays,
+          rate: i.rate,
+          customValues: customVals,
+        );
+      }).toList(),
       gstPercentage: (invoice.cgst + invoice.sgst) / (invoice.subTotal == 0 ? 1 : invoice.subTotal) * 100,
       isGstInclusive: invoice.grandTotal == invoice.subTotal,
       advancePaid: invoice.advancePaid,
@@ -280,10 +322,17 @@ class InvoiceFormNotifier extends StateNotifier<InvoiceFormState> {
       );
 
       for (final item in state.items) {
+        final dbDescription = item.customValues.isEmpty
+            ? item.description
+            : jsonEncode({
+                'description': item.description,
+                'customValues': item.customValues,
+              });
+
         await _db.into(_db.invoiceItems).insert(
           InvoiceItemsCompanion.insert(
             invoiceId: invoiceId,
-            description: item.description,
+            description: dbDescription,
             noOfVehicles: Value(item.noOfVehicles),
             itemDate: Value(item.date),
             fromTo: Value(item.fromTo),
@@ -325,14 +374,6 @@ final templatesProvider = FutureProvider<List<InvoiceTemplateSchema>>((ref) asyn
           description: Value(t.description),
           schemaJson: jsonEncode(t.toJson()),
           createdDate: DateTime.now(),
-        ),
-      );
-    } else {
-      // Force update the default templates to ensure they match the latest code-defined layout, fonts, font weights
-      await (db.update(db.invoiceTemplates)..where((row) => row.id.equals(existing.id))).write(
-        InvoiceTemplatesCompanion(
-          description: Value(t.description),
-          schemaJson: Value(jsonEncode(t.toJson())),
         ),
       );
     }

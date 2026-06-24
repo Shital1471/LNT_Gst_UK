@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -98,6 +97,13 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
     final fromToCtrl = TextEditingController();
     DateTime itemDate = DateTime.now();
 
+    final customCols = state.activeTemplate.tableColumns
+        .where((c) => c.isVisible && !const ['s_no', 'description', 'no_of_vehicles', 'date', 'from_to', 'qty', 'rate', 'amount'].contains(c.id))
+        .toList();
+    final Map<String, TextEditingController> customCtrls = {
+      for (final col in customCols) col.id: TextEditingController()
+    };
+
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -170,14 +176,53 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     ),
                   ],
                 ),
+                if (customCols.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Custom Columns', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.deepBlue)),
+                    ),
+                  ),
+                  ...customCols.map((col) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: TextField(
+                        controller: customCtrls[col.id],
+                        decoration: InputDecoration(
+                          labelText: col.label,
+                          prefixIcon: const Icon(Icons.add_box_outlined, size: 16),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ],
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () {
+                descCtrl.dispose();
+                rateCtrl.dispose();
+                qtyCtrl.dispose();
+                vehiclesCtrl.dispose();
+                fromToCtrl.dispose();
+                for (final ctrl in customCtrls.values) {
+                  ctrl.dispose();
+                }
+                Navigator.pop(ctx);
+              },
+              child: const Text('Cancel'),
+            ),
             ElevatedButton(
               onPressed: () {
                 if (descCtrl.text.isNotEmpty && rateCtrl.text.isNotEmpty) {
+                  final Map<String, String> customValues = {
+                    for (final col in customCols) col.id: customCtrls[col.id]!.text.trim()
+                  };
                   ref.read(invoiceFormProvider.notifier).addItem(
                         InvoiceFormItem(
                           description: descCtrl.text,
@@ -186,8 +231,17 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                           noOfVehicles: isTourism ? int.tryParse(vehiclesCtrl.text) : null,
                           date: isTourism ? itemDate : null,
                           fromTo: isTourism ? fromToCtrl.text : null,
+                          customValues: customValues,
                         ),
                       );
+                  descCtrl.dispose();
+                  rateCtrl.dispose();
+                  qtyCtrl.dispose();
+                  vehiclesCtrl.dispose();
+                  fromToCtrl.dispose();
+                  for (final ctrl in customCtrls.values) {
+                    ctrl.dispose();
+                  }
                   Navigator.pop(ctx);
                 }
               },
@@ -209,6 +263,13 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
     final vehiclesCtrl = TextEditingController(text: item.noOfVehicles?.toString() ?? '1');
     final fromToCtrl = TextEditingController(text: item.fromTo ?? '');
     DateTime itemDate = item.date ?? DateTime.now();
+
+    final customCols = state.activeTemplate.tableColumns
+        .where((c) => c.isVisible && !const ['s_no', 'description', 'no_of_vehicles', 'date', 'from_to', 'qty', 'rate', 'amount'].contains(c.id))
+        .toList();
+    final Map<String, TextEditingController> customCtrls = {
+      for (final col in customCols) col.id: TextEditingController(text: item.customValues[col.id] ?? '')
+    };
 
     showDialog(
       context: context,
@@ -282,14 +343,53 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     ),
                   ],
                 ),
+                if (customCols.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Custom Columns', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.deepBlue)),
+                    ),
+                  ),
+                  ...customCols.map((col) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: TextField(
+                        controller: customCtrls[col.id],
+                        decoration: InputDecoration(
+                          labelText: col.label,
+                          prefixIcon: const Icon(Icons.add_box_outlined, size: 16),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ],
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () {
+                descCtrl.dispose();
+                rateCtrl.dispose();
+                qtyCtrl.dispose();
+                vehiclesCtrl.dispose();
+                fromToCtrl.dispose();
+                for (final ctrl in customCtrls.values) {
+                  ctrl.dispose();
+                }
+                Navigator.pop(ctx);
+              },
+              child: const Text('Cancel'),
+            ),
             ElevatedButton(
               onPressed: () {
                 if (descCtrl.text.isNotEmpty && rateCtrl.text.isNotEmpty) {
+                  final Map<String, String> customValues = {
+                    for (final col in customCols) col.id: customCtrls[col.id]!.text.trim()
+                  };
                   ref.read(invoiceFormProvider.notifier).updateItem(
                         index,
                         InvoiceFormItem(
@@ -299,8 +399,17 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                           noOfVehicles: isTourism ? int.tryParse(vehiclesCtrl.text) : null,
                           date: isTourism ? itemDate : null,
                           fromTo: isTourism ? fromToCtrl.text : null,
+                          customValues: customValues,
                         ),
                       );
+                  descCtrl.dispose();
+                  rateCtrl.dispose();
+                  qtyCtrl.dispose();
+                  vehiclesCtrl.dispose();
+                  fromToCtrl.dispose();
+                  for (final ctrl in customCtrls.values) {
+                    ctrl.dispose();
+                  }
                   Navigator.pop(ctx);
                 }
               },

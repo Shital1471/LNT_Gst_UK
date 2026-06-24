@@ -14,7 +14,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/database_provider.dart';
 import '../services/pdf_generator.dart';
 import '../services/docx_generator.dart';
-import '../models/tourism_layout_config.dart';
+import '../models/invoice_template_schema.dart';
 import 'tourism_preview_widget.dart';
 
 class InvoicePreviewScreen extends ConsumerStatefulWidget {
@@ -202,6 +202,15 @@ class _InvoicePreviewScreenState extends ConsumerState<InvoicePreviewScreen> {
     return fieldValues;
   }
 
+  InvoiceTemplateSchema _getTemplate() {
+    if (widget.invoice.templateSchemaJson != null && widget.invoice.templateSchemaJson!.isNotEmpty) {
+      try {
+        return InvoiceTemplateSchema.fromJson(jsonDecode(widget.invoice.templateSchemaJson!));
+      } catch (_) {}
+    }
+    return InvoiceTemplateSchema.getPreset(widget.invoice.templateType);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -245,9 +254,10 @@ class _InvoicePreviewScreenState extends ConsumerState<InvoicePreviewScreen> {
                       ? LayoutBuilder(
                           builder: (context, constraints) {
                             final parsedFieldValues = _getFieldValues();
+                            final template = _getTemplate();
                             final double availableWidth = constraints.maxWidth;
-                            final double scale = availableWidth < TourismLayoutConfig.pageWidth
-                                ? (availableWidth - 32) / TourismLayoutConfig.pageWidth
+                            final double scale = availableWidth < template.pageWidth
+                                ? (availableWidth - 32) / template.pageWidth
                                 : 1.0;
                             return Container(
                               color: Theme.of(context).brightness == Brightness.dark
@@ -261,6 +271,7 @@ class _InvoicePreviewScreenState extends ConsumerState<InvoicePreviewScreen> {
                                     items: widget.items,
                                     company: widget.company,
                                     fieldValues: parsedFieldValues,
+                                    template: template,
                                     scale: scale,
                                   ),
                                 ),
