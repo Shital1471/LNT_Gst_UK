@@ -1,17 +1,22 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/settings_provider.dart';
 import 'core/providers/database_provider.dart';
+import 'core/providers/shortcuts_provider.dart';
 import 'core/utils/navigation.dart';
+import 'core/utils/num_to_words.dart';
+import 'core/database/app_database.dart';
 import 'features/onboarding/views/company_setup_screen.dart';
 import 'features/dashboard/views/dashboard_screen.dart';
 import 'features/invoice/providers/invoice_form_provider.dart';
 import 'features/invoice/views/invoice_form_screen.dart';
 import 'features/invoice/views/invoice_history_screen.dart';
 import 'features/invoice/views/invoice_preview_screen.dart';
+import 'features/invoice/views/invoice_designer_screen.dart';
+import 'features/invoice/views/template_management_screen.dart';
 import 'features/company/providers/company_provider.dart';
 import 'features/reports/views/reports_screen.dart';
 import 'features/settings/views/settings_screen.dart';
@@ -38,140 +43,97 @@ class GstInvoiceApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
+    final shortcuts = ref.watch(shortcutsProvider);
 
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.keyN, control: true): () {
-          ref.read(invoiceFormProvider.notifier).reset();
-          ref.read(tabIndexProvider.notifier).state = 1;
-          final context = navigatorKey.currentContext;
-          if (context != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
+    // Build dynamic shortcuts mappings
+    final Map<ShortcutActivator, VoidCallback> bindings = {};
+
+    shortcuts.forEach((actionId, shortcut) {
+      final activator = SingleActivator(
+        shortcut.key,
+        control: shortcut.control,
+        shift: shortcut.shift,
+        alt: shortcut.alt,
+      );
+
+      bindings[activator] = () {
+        final currentContext = navigatorKey.currentContext;
+        if (currentContext == null) return;
+
+        switch (actionId) {
+          case 'createNewInvoice':
+            ref.read(invoiceFormProvider.notifier).reset();
+            ref.read(tabIndexProvider.notifier).state = 1;
+            ScaffoldMessenger.of(currentContext).showSnackBar(
               const SnackBar(
                 content: Text('New Invoice Form Initialized'),
                 backgroundColor: AppTheme.primaryGreen,
                 duration: Duration(seconds: 2),
               ),
             );
-          }
-        },
-        const SingleActivator(LogicalKeyboardKey.keyS, control: true): () async {
-          final state = ref.read(invoiceFormProvider);
-          final context = navigatorKey.currentContext;
-          if (context == null) return;
+            break;
 
-          if (state.customerName.trim().isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Customer Name is required to save draft'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-            return;
-          }
-          if (state.items.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Add at least one line item before saving draft'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-            return;
-          }
+          case 'saveDraft':
+            _triggerSaveDraft(ref, currentContext);
+            break;
 
-          try {
-            await ref.read(invoiceFormProvider.notifier).saveInvoice();
-            final currentContext = navigatorKey.currentContext;
-            if (currentContext != null) {
-              ScaffoldMessenger.of(currentContext).showSnackBar(
-                const SnackBar(
-                  content: Text('Invoice draft saved successfully!'),
-                  backgroundColor: AppTheme.primaryGreen,
-                ),
-              );
-            }
-          } catch (e) {
-            final currentContext = navigatorKey.currentContext;
-            if (currentContext != null) {
-              ScaffoldMessenger.of(currentContext).showSnackBar(
-                SnackBar(
-                  content: Text('Failed to save draft: $e'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        },
-        const SingleActivator(LogicalKeyboardKey.keyP, control: true): () async {
-          final state = ref.read(invoiceFormProvider);
-          final context = navigatorKey.currentContext;
-          if (context == null) return;
+          case 'previewDocument':
+            _triggerPreview(ref, currentContext, isTemporary: true);
+            break;
 
-          if (state.customerName.trim().isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Customer Name is required to preview'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-            return;
-          }
-          if (state.items.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Add at least one line item before previewing'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-            return;
-          }
+          case 'previewGenerate':
+            _triggerPreview(ref, currentContext, isTemporary: false);
+            break;
 
-          final companyVal = ref.read(companyProfileStateProvider);
-          final company = companyVal.value;
-
-          if (company == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Please set up company profile first'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-            return;
-          }
-
-          try {
-            final invoiceId = await ref.read(invoiceFormProvider.notifier).saveInvoice();
-            final db = ref.read(databaseProvider);
-            final invoiceHeader = await (db.select(db.invoices)..where((t) => t.id.equals(invoiceId))).getSingle();
-            final itemsList = await (db.select(db.invoiceItems)..where((t) => t.invoiceId.equals(invoiceId))).get();
-
+          case 'designer':
             navigatorKey.currentState?.push(
-              MaterialPageRoute(
-                builder: (context) => InvoicePreviewScreen(
-                  invoice: invoiceHeader,
-                  items: itemsList,
-                  company: company,
-                ),
-              ),
+              MaterialPageRoute(builder: (context) => const InvoiceDesignerScreen()),
             );
-          } catch (e) {
-            final currentContext = navigatorKey.currentContext;
-            if (currentContext != null) {
-              ScaffoldMessenger.of(currentContext).showSnackBar(
-                SnackBar(
-                  content: Text('Error loading preview: $e'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+            break;
+
+          case 'templates':
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(builder: (context) => const TemplateManagementScreen()),
+            );
+            break;
+
+          case 'reports':
+            ref.read(tabIndexProvider.notifier).state = 3;
+            break;
+
+          case 'dashboard':
+            ref.read(tabIndexProvider.notifier).state = 0;
+            break;
+
+          case 'history':
+            ref.read(tabIndexProvider.notifier).state = 2;
+            break;
+
+          case 'companySetup':
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(builder: (context) => const CompanySetupScreen(isEditing: true)),
+            );
+            break;
+
+          case 'themeToggle':
+            ref.read(settingsProvider.notifier).toggleTheme(settings.themeMode != ThemeMode.dark);
+            break;
+
+          case 'focusTemplateSelector':
+            _showTemplateSelectorDialog(ref, currentContext);
+            break;
+
+          case 'goBack':
+            if (navigatorKey.currentState?.canPop() == true) {
+              navigatorKey.currentState?.pop();
             }
-          }
-        },
-        const SingleActivator(LogicalKeyboardKey.escape): () {
-          if (navigatorKey.currentState?.canPop() == true) {
-            navigatorKey.currentState?.pop();
-          }
-        },
-      },
+            break;
+        }
+      };
+    });
+
+    return CallbackShortcuts(
+      bindings: bindings,
       child: MaterialApp(
         navigatorKey: navigatorKey,
         title: 'GST Invoice Generator',
@@ -182,6 +144,239 @@ class GstInvoiceApp extends ConsumerWidget {
         home: settings.onboardingCompleted
             ? const AppLayout()
             : const CompanySetupScreen(),
+      ),
+    );
+  }
+
+  Future<void> _triggerSaveDraft(WidgetRef ref, BuildContext context) async {
+    final state = ref.read(invoiceFormProvider);
+
+    if (state.customerName.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Customer Name is required to save draft'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    if (state.items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add at least one line item before saving draft'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      await ref.read(invoiceFormProvider.notifier).saveInvoice();
+      final currentContext = navigatorKey.currentContext;
+      if (currentContext != null) {
+        ScaffoldMessenger.of(currentContext).showSnackBar(
+          const SnackBar(
+            content: Text('Invoice draft saved successfully!'),
+            backgroundColor: AppTheme.primaryGreen,
+          ),
+        );
+      }
+    } catch (e) {
+      final currentContext = navigatorKey.currentContext;
+      if (currentContext != null) {
+        ScaffoldMessenger.of(currentContext).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save draft: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _triggerPreview(WidgetRef ref, BuildContext context, {required bool isTemporary}) async {
+    final state = ref.read(invoiceFormProvider);
+
+    if (state.customerName.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Customer Name is required to preview'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    if (state.items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add at least one line item before previewing'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final companyVal = ref.read(companyProfileStateProvider);
+    final company = companyVal.value;
+
+    if (company == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please set up company profile first'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      if (isTemporary) {
+        final tempInvoice = Invoice(
+          id: -1,
+          invoiceNumber: state.invoiceNumber,
+          invoiceDate: state.invoiceDate,
+          dueDate: state.dueDate,
+          bookingRef: state.bookingRef.isEmpty ? null : state.bookingRef,
+          bookingDate: state.bookingDate,
+          customerName: state.customerName,
+          customerAddress: state.customerAddress,
+          customerGstNumber: state.customerGstNumber.isEmpty ? null : state.customerGstNumber,
+          customerContactNumber: state.customerContactNumber.isEmpty ? null : state.customerContactNumber,
+          tourTrip: state.tourTrip.isEmpty ? null : state.tourTrip,
+          travelDate: state.travelDate,
+          noOfDays: state.noOfDays,
+          noOfVehicles: state.noOfVehicles,
+          coordinatorName: state.coordinatorName.isEmpty ? null : state.coordinatorName,
+          subTotal: state.gstCalculations.subTotal,
+          cgst: state.gstCalculations.cgst,
+          sgst: state.gstCalculations.sgst,
+          totalGst: state.gstCalculations.totalGst,
+          grandTotal: state.gstCalculations.grandTotal,
+          advancePaid: state.advancePaid,
+          amountPaidInWords: NumberToWords.convert(state.gstCalculations.grandTotal - state.advancePaid),
+          templateType: state.templateType,
+          createdDate: DateTime.now(),
+          templateSchemaJson: jsonEncode(state.activeTemplate.toJson()),
+          fieldValuesJson: ref.read(invoiceFormProvider.notifier).serializeFieldValues(state.fieldValues),
+        );
+
+        final List<InvoiceItem> tempItemsList = state.items.asMap().entries.map((entry) {
+          final index = entry.key;
+          final item = entry.value;
+          final dbDescription = item.customValues.isEmpty
+              ? item.description
+              : jsonEncode({
+                  'description': item.description,
+                  'customValues': item.customValues,
+                });
+          return InvoiceItem(
+            id: index,
+            invoiceId: -1,
+            description: dbDescription,
+            noOfVehicles: item.noOfVehicles,
+            itemDate: item.date,
+            fromTo: item.fromTo,
+            quantityDays: item.quantityDays,
+            rate: item.rate,
+            amount: item.amount,
+          );
+        }).toList();
+
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (context) => InvoicePreviewScreen(
+              invoice: tempInvoice,
+              items: tempItemsList,
+              company: company,
+              isTemporary: true,
+            ),
+          ),
+        );
+      } else {
+        final invoiceId = await ref.read(invoiceFormProvider.notifier).saveInvoice();
+        final db = ref.read(databaseProvider);
+        final invoiceHeader = await (db.select(db.invoices)..where((t) => t.id.equals(invoiceId))).getSingle();
+        final itemsList = await (db.select(db.invoiceItems)..where((t) => t.invoiceId.equals(invoiceId))).get();
+
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (context) => InvoicePreviewScreen(
+              invoice: invoiceHeader,
+              items: itemsList,
+              company: company,
+              isTemporary: false,
+            ),
+          ),
+        ).then((_) {
+          ref.read(invoiceFormProvider.notifier).initDefaults(template: state.activeTemplate);
+        });
+      }
+    } catch (e) {
+      final currentContext = navigatorKey.currentContext;
+      if (currentContext != null) {
+        ScaffoldMessenger.of(currentContext).showSnackBar(
+          SnackBar(
+            content: Text('Error loading preview: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showTemplateSelectorDialog(WidgetRef ref, BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Consumer(
+        builder: (context, ref, child) {
+          final state = ref.watch(invoiceFormProvider);
+          final templatesVal = ref.watch(templatesProvider);
+          
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.palette_outlined, color: AppTheme.primaryGreen),
+                SizedBox(width: 10),
+                Text('Select Template Preset', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: templatesVal.when(
+              data: (list) => SizedBox(
+                width: 320,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: list.length,
+                  itemBuilder: (context, index) {
+                    final t = list[index];
+                    final isSelected = state.activeTemplate.id == t.id;
+                    return ListTile(
+                      selected: isSelected,
+                      selectedColor: AppTheme.primaryGreen,
+                      leading: Icon(
+                        isSelected ? Icons.check_circle : Icons.circle_outlined,
+                        color: isSelected ? AppTheme.primaryGreen : Colors.grey,
+                      ),
+                      title: Text(t.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(t.description, style: const TextStyle(fontSize: 11)),
+                      onTap: () {
+                        ref.read(invoiceFormProvider.notifier).updateTemplate(t);
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Switched layout template to: ${t.name}'),
+                            backgroundColor: AppTheme.primaryGreen,
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => const Icon(Icons.error),
+            ),
+          );
+        },
       ),
     );
   }

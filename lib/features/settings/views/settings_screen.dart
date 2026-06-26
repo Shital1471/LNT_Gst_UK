@@ -11,6 +11,7 @@ import '../../company/providers/company_provider.dart';
 import '../../onboarding/views/company_setup_screen.dart';
 import '../../invoice/views/invoice_designer_screen.dart';
 import '../../invoice/views/template_management_screen.dart';
+import 'shortcuts_settings_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -239,46 +240,22 @@ class SettingsScreen extends ConsumerWidget {
           if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) ...[
             const SizedBox(height: 16),
             Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Keyboard Shortcuts (Desktop)', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.deepBlue)),
-                    const SizedBox(height: 8),
-                    _shortcutRow('Ctrl + N', 'Create New Invoice'),
-                    _shortcutRow('Ctrl + S', 'Save Invoice Draft'),
-                    _shortcutRow('Ctrl + P', 'Print / View Preview'),
-                    _shortcutRow('Esc', 'Go Back / Exit Dialogs'),
-                  ],
-                ),
+              child: ListTile(
+                leading: const Icon(Icons.keyboard, color: AppTheme.primaryGreen),
+                title: const Text('Keyboard Shortcuts Settings'),
+                subtitle: const Text('View and customize application keyboard shortcuts'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ShortcutsSettingsScreen(),
+                    ),
+                  );
+                },
               ),
             ),
           ]
-        ],
-      ),
-    );
-  }
-
-  Widget _shortcutRow(String keys, String description) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(description, style: const TextStyle(fontSize: 13)),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: Colors.grey.shade400),
-            ),
-            child: Text(
-              keys,
-              style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 11, color: Colors.black87),
-            ),
-          ),
         ],
       ),
     );

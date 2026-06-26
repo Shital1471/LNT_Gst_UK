@@ -764,7 +764,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
     );
   }
 
-  Future<void> _previewDocument({required bool resetOnReturn}) async {
+  Future<void> _previewDocument({required bool resetOnReturn, bool isTemporary = false}) async {
     final state = ref.read(invoiceFormProvider);
     if (state.customerName.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -790,26 +790,94 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
     }
 
     try {
-      final invoiceId = await ref.read(invoiceFormProvider.notifier).saveInvoice();
-
-      final db = ref.read(databaseProvider);
-      final invoiceHeader = await (db.select(db.invoices)..where((t) => t.id.equals(invoiceId))).getSingle();
-      final itemsList = await (db.select(db.invoiceItems)..where((t) => t.invoiceId.equals(invoiceId))).get();
-
-      if (mounted) {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => InvoicePreviewScreen(
-              invoice: invoiceHeader,
-              items: itemsList,
-              company: company,
-            ),
-          ),
+      if (isTemporary) {
+        final tempInvoice = Invoice(
+          id: -1,
+          invoiceNumber: state.invoiceNumber,
+          invoiceDate: state.invoiceDate,
+          dueDate: state.dueDate,
+          bookingRef: state.bookingRef.isEmpty ? null : state.bookingRef,
+          bookingDate: state.bookingDate,
+          customerName: state.customerName,
+          customerAddress: state.customerAddress,
+          customerGstNumber: state.customerGstNumber.isEmpty ? null : state.customerGstNumber,
+          customerContactNumber: state.customerContactNumber.isEmpty ? null : state.customerContactNumber,
+          tourTrip: state.tourTrip.isEmpty ? null : state.tourTrip,
+          travelDate: state.travelDate,
+          noOfDays: state.noOfDays,
+          noOfVehicles: state.noOfVehicles,
+          coordinatorName: state.coordinatorName.isEmpty ? null : state.coordinatorName,
+          subTotal: state.gstCalculations.subTotal,
+          cgst: state.gstCalculations.cgst,
+          sgst: state.gstCalculations.sgst,
+          totalGst: state.gstCalculations.totalGst,
+          grandTotal: state.gstCalculations.grandTotal,
+          advancePaid: state.advancePaid,
+          amountPaidInWords: NumberToWords.convert(state.gstCalculations.grandTotal - state.advancePaid),
+          templateType: state.templateType,
+          createdDate: DateTime.now(),
+          templateSchemaJson: jsonEncode(state.activeTemplate.toJson()),
+          fieldValuesJson: ref.read(invoiceFormProvider.notifier).serializeFieldValues(state.fieldValues),
         );
-        if (resetOnReturn) {
-          ref.read(invoiceFormProvider.notifier).initDefaults(template: state.activeTemplate);
-          _syncControllersWithState(ref.read(invoiceFormProvider));
+
+        final List<InvoiceItem> tempItemsList = state.items.asMap().entries.map((entry) {
+          final index = entry.key;
+          final item = entry.value;
+          final dbDescription = item.customValues.isEmpty
+              ? item.description
+              : jsonEncode({
+                  'description': item.description,
+                  'customValues': item.customValues,
+                });
+          return InvoiceItem(
+            id: index,
+            invoiceId: -1,
+            description: dbDescription,
+            noOfVehicles: item.noOfVehicles,
+            itemDate: item.date,
+            fromTo: item.fromTo,
+            quantityDays: item.quantityDays,
+            rate: item.rate,
+            amount: item.amount,
+          );
+        }).toList();
+
+        if (mounted) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => InvoicePreviewScreen(
+                invoice: tempInvoice,
+                items: tempItemsList,
+                company: company,
+                isTemporary: true,
+              ),
+            ),
+          );
+        }
+      } else {
+        final invoiceId = await ref.read(invoiceFormProvider.notifier).saveInvoice();
+
+        final db = ref.read(databaseProvider);
+        final invoiceHeader = await (db.select(db.invoices)..where((t) => t.id.equals(invoiceId))).getSingle();
+        final itemsList = await (db.select(db.invoiceItems)..where((t) => t.invoiceId.equals(invoiceId))).get();
+
+        if (mounted) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => InvoicePreviewScreen(
+                invoice: invoiceHeader,
+                items: itemsList,
+                company: company,
+                isTemporary: false,
+              ),
+            ),
+          );
+          if (resetOnReturn) {
+            ref.read(invoiceFormProvider.notifier).initDefaults(template: state.activeTemplate);
+            _syncControllersWithState(ref.read(invoiceFormProvider));
+          }
         }
       }
     } catch (e) {
@@ -841,7 +909,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           OutlinedButton.icon(
-            onPressed: isEnabled ? () => _previewDocument(resetOnReturn: false) : null,
+            onPressed: isEnabled ? () => _previewDocument(resetOnReturn: false, isTemporary: true) : null,
             icon: const Icon(Icons.visibility_outlined),
             label: const Text('Preview Document'),
             style: OutlinedButton.styleFrom(
@@ -854,7 +922,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
           ),
           const SizedBox(width: 16),
           ElevatedButton.icon(
-            onPressed: isEnabled ? () => _previewDocument(resetOnReturn: true) : null,
+            onPressed: isEnabled ? () => _previewDocument(resetOnReturn: true, isTemporary: false) : null,
             icon: const Icon(Icons.picture_as_pdf),
             label: const Text('Preview & Generate Document'),
             style: ElevatedButton.styleFrom(

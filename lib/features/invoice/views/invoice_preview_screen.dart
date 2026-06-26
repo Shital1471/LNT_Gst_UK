@@ -21,12 +21,14 @@ class InvoicePreviewScreen extends ConsumerStatefulWidget {
   final Invoice invoice;
   final List<InvoiceItem> items;
   final CompanyProfile company;
+  final bool isTemporary;
 
   const InvoicePreviewScreen({
     super.key,
     required this.invoice,
     required this.items,
     required this.company,
+    this.isTemporary = false,
   });
 
   @override
@@ -66,6 +68,10 @@ class _InvoicePreviewScreenState extends ConsumerState<InvoicePreviewScreen> {
         _pdfBytes = pdf;
         _docxBytes = docx;
       });
+
+      if (widget.isTemporary) {
+        return;
+      }
 
       // 2. Save both files to local storage (auto-save history requirement)
       final docDir = await getApplicationDocumentsDirectory();
