@@ -800,6 +800,7 @@ class InvoiceTemplateSchema {
             FieldSchema(id: 'bank_name', label: 'Bank Name', valueType: 'text', defaultValue: 'State Bank of India', posX: 285, posY: 585, width: 90, height: 10, fontSize: 6.5),
             FieldSchema(id: 'bank_account_no', label: 'Account No.', valueType: 'text', defaultValue: '45103469416', posX: 285, posY: 596, width: 90, height: 10, fontSize: 6.5),
             FieldSchema(id: 'bank_ifsc', label: 'IFSC Code', valueType: 'text', defaultValue: 'SBIN0017056', posX: 285, posY: 607, width: 90, height: 10, fontSize: 6.5),
+            FieldSchema(id: 'bank_branch', label: 'Branch', valueType: 'text', defaultValue: 'Dehradun', posX: 285, posY: 618, width: 90, height: 10, fontSize: 6.5),
           ],
         ),
         SectionSchema(
@@ -889,6 +890,7 @@ class InvoiceTemplateSchema {
             FieldSchema(id: 'bank_name', label: 'Bank Name', valueType: 'text'),
             FieldSchema(id: 'bank_account_no', label: 'Account Number', valueType: 'text'),
             FieldSchema(id: 'bank_ifsc', label: 'IFSC Code', valueType: 'text'),
+            FieldSchema(id: 'bank_branch', label: 'Branch', valueType: 'text'),
           ],
         ),
         SectionSchema(
@@ -1038,6 +1040,8 @@ class InvoiceTemplateSchema {
           fields: [
             FieldSchema(id: 'bank_name', label: 'Bank Name', valueType: 'text'),
             FieldSchema(id: 'bank_account_no', label: 'Account Number', valueType: 'text'),
+            FieldSchema(id: 'bank_ifsc', label: 'IFSC Code', valueType: 'text'),
+            FieldSchema(id: 'bank_branch', label: 'Branch', valueType: 'text'),
           ],
         ),
         SectionSchema(

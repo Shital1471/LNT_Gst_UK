@@ -13,11 +13,6 @@ class DocxGeneratorService {
     required CompanyProfile company,
   }) async {
     final df = DateFormat('dd/MM/yyyy');
-    final currencyFmt = NumberFormat.currency(
-      locale: 'en_IN',
-      symbol: 'Rs. ',
-      decimalDigits: 2,
-    );
     final simpleCurrencyFmt = NumberFormat.currency(
       locale: 'en_IN',
       symbol: '',
@@ -87,6 +82,7 @@ class DocxGeneratorService {
     final bankAccountNo =
         fieldValues['bank_account_no'] ?? company.bankAccountNumber;
     final bankIfsc = fieldValues['bank_ifsc'] ?? company.bankIfscCode;
+    final bankBranch = fieldValues['bank_branch'] ?? '';
 
     final termsSec = adjustedTemplate.sections.firstWhere(
       (s) => s.id == 'terms_conditions',
@@ -178,14 +174,29 @@ class DocxGeneratorService {
 
     Uint8List? sigBytes;
     String? sigExt;
-    if (company.signaturePath != null && company.signaturePath!.isNotEmpty) {
+
+    final String signatureType = fieldValues['signature_type']?.toString() ?? 'company';
+    final String signatureText = fieldValues['signature_text']?.toString() ?? 'Abhishek Prajapati';
+    final String? signatureImagePath = fieldValues['signature_image_path']?.toString();
+
+    if (signatureType == 'upload' && signatureImagePath != null && signatureImagePath.isNotEmpty) {
       try {
-        final file = File(company.signaturePath!);
+        final file = File(signatureImagePath);
         if (await file.exists()) {
           sigBytes = await file.readAsBytes();
-          sigExt = company.signaturePath!.split('.').last.toLowerCase();
+          sigExt = signatureImagePath.split('.').last.toLowerCase();
         }
       } catch (_) {}
+    } else if (signatureType == 'company') {
+      if (company.signaturePath != null && company.signaturePath!.isNotEmpty) {
+        try {
+          final file = File(company.signaturePath!);
+          if (await file.exists()) {
+            sigBytes = await file.readAsBytes();
+            sigExt = company.signaturePath!.split('.').last.toLowerCase();
+          }
+        } catch (_) {}
+      }
     }
 
     // Colors
@@ -1148,55 +1159,7 @@ class DocxGeneratorService {
             ),
           );
 
-          DocxTableRow _bankItemRow(String label, String value, int tableW) {
-            return DocxTableRow(
-              cells: [
-                DocxTableCell(
-                  width: (tableW * 0.40).toInt(),
-                  children: [
-                    DocxParagraph(
-                      children: [
-                        DocxText(
-                          '$label:',
-                          fontWeight: DocxFontWeight.bold,
-                          fontSize: footerStyle.fontSize,
-                          fontFamily: footerStyle.fontFamily,
-                          color: _getDocxColor(footerStyle.textColor),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                DocxTableCell(
-                  width: (tableW * 0.60).toInt(),
-                  children: [
-                    DocxParagraph(
-                      children: [
-                        DocxText(
-                          value,
-                          fontSize: footerStyle.fontSize,
-                          fontFamily: footerStyle.fontFamily,
-                          color: _getDocxColor(footerStyle.textColor),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            );
-          }
 
-          final bankTable = DocxTable(
-            width: colW,
-            widthType: DocxWidthType.dxa,
-            style: DocxTableStyle.plain,
-            rows: [
-              _bankItemRow("Account Name", bankAccountName.toString(), colW),
-              _bankItemRow("Bank Name", bankName.toString(), colW),
-              _bankItemRow("Account No", bankAccountNo.toString(), colW),
-              _bankItemRow("IFSC Code", bankIfsc.toString(), colW),
-            ],
-          );
           cellParagraphs.add(DocxParagraph(children: [])); // spacing
           // We can't nest tables inside table cells directly easily in DocxTable API sometimes,
           // so let's write paragraphs for bank info instead of nested tables to be safe!
@@ -1248,6 +1211,20 @@ class DocxGeneratorService {
               ],
             ),
           );
+          if (bankBranch.isNotEmpty) {
+            cellParagraphs.add(
+              DocxParagraph(
+                children: [
+                  DocxText(
+                    "Branch: $bankBranch",
+                    fontSize: footerStyle.fontSize,
+                    fontFamily: footerStyle.fontFamily,
+                    color: _getDocxColor(footerStyle.textColor),
+                  ),
+                ],
+              ),
+            );
+          }
         } else {
           // signature
           cellParagraphs.add(
@@ -1322,7 +1299,7 @@ class DocxGeneratorService {
                 ),
                 children: [
                   DocxText(
-                    "Abhishek Prajapati",
+                    signatureText,
                     color: DocxColor('1D4ED8'),
                     fontStyle: DocxFontStyle.italic,
                     fontWeight: DocxFontWeight.bold,
@@ -2019,6 +1996,9 @@ class DocxGeneratorService {
           document.p("Bank Name: $bankName");
           document.p("Account Number: $bankAccountNo");
           document.p("IFSC Code: $bankIfsc");
+          if (bankBranch.isNotEmpty) {
+            document.p("Branch: $bankBranch");
+          }
           document.p('');
         } else if (sec.id == 'terms_conditions') {
           document.paragraph(
@@ -2093,7 +2073,7 @@ class DocxGeneratorService {
                         ),
                         children: [
                           DocxText(
-                            company.name.split(' ').first,
+                            sigBytes != null ? "" : signatureText,
                             fontStyle: DocxFontStyle.italic,
                             fontWeight: DocxFontWeight.bold,
                             fontSize: 10,

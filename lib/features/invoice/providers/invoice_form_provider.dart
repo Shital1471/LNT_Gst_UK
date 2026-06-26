@@ -35,6 +35,21 @@ class InvoiceFormNotifier extends StateNotifier<InvoiceFormState> {
     final indexStr = count.toString().padLeft(3, '0');
     final generatedNo = '$prefix$indexStr';
 
+    String bankNameVal = 'State Bank of India';
+    String bankAccountNoVal = '45103469416';
+    String bankIfscVal = 'SBIN0017056';
+    String bankAccountNameVal = 'LN Tourism Private Limited';
+
+    try {
+      final company = await (_db.select(_db.companyProfiles)..limit(1)).getSingleOrNull();
+      if (company != null) {
+        bankNameVal = company.bankName;
+        bankAccountNoVal = company.bankAccountNumber;
+        bankIfscVal = company.bankIfscCode;
+        bankAccountNameVal = company.bankAccountName;
+      }
+    } catch (_) {}
+
     final activeT = template ?? InvoiceTemplateSchema.getTourismDefault();
     final defaultValues = <String, dynamic>{
       'invoice_number': generatedNo,
@@ -51,6 +66,14 @@ class InvoiceFormNotifier extends StateNotifier<InvoiceFormState> {
       'no_of_days': 1,
       'no_of_vehicles': 1,
       'coordinator_name': '',
+      'bank_name': bankNameVal,
+      'bank_account_no': bankAccountNoVal,
+      'bank_ifsc': bankIfscVal,
+      'bank_account_name': bankAccountNameVal,
+      'bank_branch': 'Dehradun',
+      'signature_type': 'company',
+      'signature_text': 'Abhishek Prajapati',
+      'signature_image_path': '',
     };
 
     // Fill in default values from fields schema
@@ -65,16 +88,7 @@ class InvoiceFormNotifier extends StateNotifier<InvoiceFormState> {
     state = InvoiceFormState(
       activeTemplate: activeT,
       fieldValues: defaultValues,
-      items: [
-        InvoiceFormItem(
-          description: 'Car Rental Charges',
-          noOfVehicles: 1,
-          date: now,
-          fromTo: 'Dehradun - Haridwar',
-          quantityDays: 1,
-          rate: 2500,
-        )
-      ],
+      items: [],
     );
   }
 
@@ -374,6 +388,13 @@ final templatesProvider = FutureProvider<List<InvoiceTemplateSchema>>((ref) asyn
           description: Value(t.description),
           schemaJson: jsonEncode(t.toJson()),
           createdDate: DateTime.now(),
+        ),
+      );
+    } else {
+      // Overwrite/update templates to keep schemas in sync with code definitions
+      await (db.update(db.invoiceTemplates)..where((row) => row.id.equals(existing.id))).write(
+        InvoiceTemplatesCompanion(
+          schemaJson: Value(jsonEncode(t.toJson())),
         ),
       );
     }

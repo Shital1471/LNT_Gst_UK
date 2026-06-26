@@ -617,20 +617,29 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
                         textAlign: TextAlign.center,
                       ),
                       const Spacer(),
-                      // Signature Image
-                      if (company.signaturePath != null && File(company.signaturePath!).existsSync())
-                        Image.file(File(company.signaturePath!), height: 25 * scale, fit: BoxFit.contain)
-                      else
-                        Text(
-                          "Abhishek Prajapati",
-                          style: TextStyle(
-                            fontStyle: FontStyle.italic,
-                            fontSize: 10 * scale,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade700,
-                            fontFamily: 'Times New Roman',
-                          ),
-                        ),
+                      // Signature Image / Typed Signature
+                      () {
+                        final sigType = fieldValues['signature_type']?.toString() ?? 'company';
+                        final sigText = fieldValues['signature_text']?.toString() ?? 'Abhishek Prajapati';
+                        final sigPath = fieldValues['signature_image_path']?.toString() ?? '';
+
+                        if (sigType == 'upload' && sigPath.isNotEmpty && File(sigPath).existsSync()) {
+                          return Image.file(File(sigPath), height: 25 * scale, fit: BoxFit.contain);
+                        } else if (sigType == 'company' && company.signaturePath != null && File(company.signaturePath!).existsSync()) {
+                          return Image.file(File(company.signaturePath!), height: 25 * scale, fit: BoxFit.contain);
+                        } else {
+                          return Text(
+                            sigText.isEmpty ? 'Abhishek Prajapati' : sigText,
+                            style: TextStyle(
+                              fontStyle: FontStyle.italic,
+                              fontSize: 10 * scale,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade700,
+                              fontFamily: 'Times New Roman',
+                            ),
+                          );
+                        }
+                      }(),
                       const Divider(height: 4, color: Colors.grey),
                       Text(
                         signatoryTitle.toString().toUpperCase(),

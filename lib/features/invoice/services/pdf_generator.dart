@@ -87,13 +87,25 @@ class PdfGeneratorService {
       } catch (_) {}
     }
 
-    if (company.signaturePath != null && company.signaturePath!.isNotEmpty) {
+    final String signatureType = fieldValues['signature_type']?.toString() ?? 'company';
+    final String? signatureImagePath = fieldValues['signature_image_path']?.toString();
+
+    if (signatureType == 'upload' && signatureImagePath != null && signatureImagePath.isNotEmpty) {
       try {
-        final file = File(company.signaturePath!);
+        final file = File(signatureImagePath);
         if (await file.exists()) {
           sigImage = pw.MemoryImage(await file.readAsBytes());
         }
       } catch (_) {}
+    } else if (signatureType == 'company') {
+      if (company.signaturePath != null && company.signaturePath!.isNotEmpty) {
+        try {
+          final file = File(company.signaturePath!);
+          if (await file.exists()) {
+            sigImage = pw.MemoryImage(await file.readAsBytes());
+          }
+        } catch (_) {}
+      }
     }
 
     // 5. Build sections in sorted layout sequence
@@ -155,7 +167,7 @@ class PdfGeneratorService {
             } else if (sec.id == 'terms_conditions') {
               return _buildTermsConditionsBlock(adjustedTemplate, sec, scale);
             } else if (sec.id == 'signature') {
-              return _buildSignatureBlock(adjustedTemplate, sec, company, sigImage, scale);
+              return _buildSignatureBlock(adjustedTemplate, sec, company, sigImage, scale, invoice);
             }
             return pw.SizedBox();
           }
@@ -215,38 +227,7 @@ class PdfGeneratorService {
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
     final cName = (fieldValues['company_name'] ?? company.name).toString().toUpperCase();
-    final tagline = (fieldValues['company_tagline'] ?? 'TOURS & TRAVELS | CAR RENTAL | TRANSPORT SOLUTIONS').toString().toUpperCase();
-    final phone = fieldValues['company_phone'] ?? company.contactNumber;
-    final email = fieldValues['company_email'] ?? company.email;
-    final web = fieldValues['company_website'] ?? 'www.lntourism.com';
-    final address = fieldValues['company_address'] ?? company.address;
-
-    final customerName = fieldValues['customer_name'] ?? '';
-    final customerAddress = fieldValues['customer_address'] ?? '';
-    final customerCityStatePin = fieldValues['customer_city_state_pin'] ?? '';
-    final customerGst = fieldValues['customer_gst'] ?? '';
-    final customerPhone = fieldValues['customer_phone'] ?? '';
-
-    final invoiceNo = fieldValues['invoice_number'] ?? '';
-    final invoiceDateRaw = fieldValues['invoice_date'];
-    final invoiceDate = invoiceDateRaw != null ? _formatValue(invoiceDateRaw, 'date') : '';
-    final bookingRef = fieldValues['booking_ref'] ?? '';
-    final bookingDateRaw = fieldValues['booking_date'];
-    final bookingDate = bookingDateRaw != null ? _formatValue(bookingDateRaw, 'date') : '';
-    final companyPan = fieldValues['company_pan'] ?? 'AAGCL7813B';
-    final companyGstIn = fieldValues['company_gst_in'] ?? '05AAGCL7813B1ZU';
-
-    final tourTrip = fieldValues['tour_trip'] ?? '';
-    final travelDateRaw = fieldValues['travel_date'];
-    final travelDate = travelDateRaw != null ? _formatValue(travelDateRaw, 'date') : '';
-    final noOfDays = fieldValues['no_of_days']?.toString() ?? '';
-    final noOfVehicles = fieldValues['no_of_vehicles']?.toString() ?? '';
-    final coordinatorName = fieldValues['coordinator_name'] ?? '';
-
-    final bankAccountName = fieldValues['bank_account_name'] ?? company.bankAccountName;
-    final bankName = fieldValues['bank_name'] ?? company.bankName;
-    final bankAccountNo = fieldValues['bank_account_no'] ?? company.bankAccountNumber;
-    final bankIfsc = fieldValues['bank_ifsc'] ?? company.bankIfscCode;
+    // Unused variables removed for analyzer cleanliness
 
     final termsSec = template.sections.firstWhere((s) => s.id == 'terms_conditions', orElse: () => SectionSchema(id: 'terms_conditions', title: 'TERM & CONDITION 8', orderIndex: 7, fields: []));
     final termsField = termsSec.fields.firstWhere((f) => f.id == 'terms_text', orElse: () => FieldSchema(id: 'terms_text', label: 'Terms', valueType: 'text'));
@@ -799,7 +780,7 @@ class PdfGeneratorService {
               pw.Image(sigImage, height: 22 * scale)
             else
               pw.Text(
-                "Abhishek Prajapati",
+                fieldValues['signature_text']?.toString() ?? "Abhishek Prajapati",
                 style: pw.TextStyle(
                   font: pw.Font.timesItalic(),
                   fontSize: 10 * scale,
@@ -1530,6 +1511,19 @@ class PdfGeneratorService {
     final sectionTitleStyle = template.typography['section_title'] ?? TextStyleSchema(fontSize: 8, fontWeight: 'bold', fontFamily: 'Helvetica', textColor: '#499F34');
     final footerStyle = template.typography['footer'] ?? TextStyleSchema(fontSize: 6.5, fontWeight: 'normal', fontFamily: 'Helvetica', textColor: '#000000');
 
+    Map<String, dynamic> fieldValues = {};
+    if (invoice.fieldValuesJson != null && invoice.fieldValuesJson!.isNotEmpty) {
+      try {
+        fieldValues = jsonDecode(invoice.fieldValuesJson!);
+      } catch (_) {}
+    }
+
+    final bankAccountName = fieldValues['bank_account_name'] ?? company.bankAccountName;
+    final bankName = fieldValues['bank_name'] ?? company.bankName;
+    final bankAccountNo = fieldValues['bank_account_no'] ?? company.bankAccountNumber;
+    final bankIfsc = fieldValues['bank_ifsc'] ?? company.bankIfscCode;
+    final bankBranch = fieldValues['bank_branch'] ?? '';
+
     return pw.Container(
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -1547,10 +1541,12 @@ class PdfGeneratorService {
                   style: _getPdfStyle(sectionTitleStyle, scale, forceBold: true),
                 ),
                 pw.SizedBox(height: 4 * scale),
-                _bankItem("Account Name", company.bankAccountName, scale, style: footerStyle),
-                _bankItem("Bank Name", company.bankName, scale, style: footerStyle),
-                _bankItem("Account No", company.bankAccountNumber, scale, style: footerStyle),
-                _bankItem("IFSC Code", company.bankIfscCode, scale, style: footerStyle),
+                _bankItem("Account Name", bankAccountName.toString(), scale, style: footerStyle),
+                _bankItem("Bank Name", bankName.toString(), scale, style: footerStyle),
+                _bankItem("Account No", bankAccountNo.toString(), scale, style: footerStyle),
+                _bankItem("IFSC Code", bankIfsc.toString(), scale, style: footerStyle),
+                if (bankBranch.toString().isNotEmpty)
+                  _bankItem("Branch", bankBranch.toString(), scale, style: footerStyle),
                 pw.SizedBox(height: 6 * scale),
                 pw.Text(
                   "Amount to be paid in words: ${invoice.amountPaidInWords}",
@@ -1628,10 +1624,19 @@ class PdfGeneratorService {
     CompanyProfile company,
     pw.ImageProvider? sigImage,
     double scale,
+    Invoice invoice,
   ) {
     final primaryGreen = PdfColor.fromInt(0xFF499F34);
     final sectionTitleStyle = template.typography['section_title'] ?? TextStyleSchema(fontSize: 8, fontWeight: 'bold', fontFamily: 'Helvetica', textColor: '#499F34');
     final footerStyle = template.typography['footer'] ?? TextStyleSchema(fontSize: 6.5, fontWeight: 'normal', fontFamily: 'Helvetica', textColor: '#000000');
+
+    Map<String, dynamic> fieldValues = {};
+    if (invoice.fieldValuesJson != null && invoice.fieldValuesJson!.isNotEmpty) {
+      try {
+        fieldValues = jsonDecode(invoice.fieldValuesJson!);
+      } catch (_) {}
+    }
+    final String signatureText = fieldValues['signature_text']?.toString() ?? company.name.split(' ').first;
 
     final field = sec.fields.firstWhere((f) => f.id == 'signatory_title', orElse: () => FieldSchema(id: 'signatory_title', label: 'Title', valueType: 'text'));
     final title = field.defaultValue?.toString() ?? 'AUTHORIZED SIGNATORY';
@@ -1660,11 +1665,11 @@ class PdfGeneratorService {
                   child: sigImage != null
                       ? pw.Image(sigImage, height: 22 * scale)
                       : pw.Text(
-                          company.name.split(' ').first,
+                          signatureText,
                           style: pw.TextStyle(
+                            font: pw.Font.timesItalic(),
                             fontSize: 9 * scale,
                             fontWeight: pw.FontWeight.bold,
-                            fontStyle: pw.FontStyle.italic,
                             color: PdfColor.fromInt(0xFF0B3B60),
                           ),
                         ),
