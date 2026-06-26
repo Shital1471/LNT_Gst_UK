@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/theme/app_theme.dart';
 import '../models/tourism_layout_config.dart';
@@ -152,6 +153,12 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
                       ? headerStyle
                       : (isTagline ? subheaderStyle : bodyStyle);
 
+                  final idLower = f.id.toLowerCase();
+                  final isPhone = idLower.contains('phone') || idLower.contains('mobile') || idLower.contains('contact');
+                  final isEmail = idLower.contains('email');
+                  final isWebsite = idLower.contains('website') || idLower.contains('web');
+                  final isLinkable = !isDesigner && textVal.trim().isNotEmpty && (isPhone || isEmail || isWebsite);
+
                   return _positionedField(
                     id: f.id,
                     sectionId: 'company_details',
@@ -159,18 +166,39 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
                     posY: layout.getFieldY(f.id),
                     width: layout.getFieldWidth(f.id),
                     height: layout.getFieldHeight(f.id),
-                    child: Text(
-                      textVal,
-                      style: TextStyle(
-                        fontSize: style.fontSize * scale,
-                        fontWeight: style.fontWeight == 'bold' ? FontWeight.bold : FontWeight.normal,
-                        color: _parseColor(style.textColor),
-                        fontFamily: style.fontFamily,
-                        letterSpacing: style.letterSpacing * scale,
-                        height: style.lineHeight,
-                      ),
-                      maxLines: 2,
-                    ),
+                    child: isLinkable
+                        ? GestureDetector(
+                            onTap: () => _launchFieldUrl(f.id, textVal),
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: Text(
+                                textVal,
+                                style: TextStyle(
+                                  fontSize: style.fontSize * scale,
+                                  fontWeight: style.fontWeight == 'bold' ? FontWeight.bold : FontWeight.normal,
+                                  color: Colors.blue.shade700,
+                                  fontFamily: style.fontFamily,
+                                  letterSpacing: style.letterSpacing * scale,
+                                  height: style.lineHeight,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: Colors.blue.shade700,
+                                ),
+                                maxLines: 2,
+                              ),
+                            ),
+                          )
+                        : Text(
+                            textVal,
+                            style: TextStyle(
+                              fontSize: style.fontSize * scale,
+                              fontWeight: style.fontWeight == 'bold' ? FontWeight.bold : FontWeight.normal,
+                              color: _parseColor(style.textColor),
+                              fontFamily: style.fontFamily,
+                              letterSpacing: style.letterSpacing * scale,
+                              height: style.lineHeight,
+                            ),
+                            maxLines: 2,
+                          ),
                   );
                 }).toList(),
 
@@ -684,6 +712,15 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
     String sectionId, {
     required TextStyleSchema style,
   }) {
+    final idLower = id.toLowerCase();
+    final labelLower = label.toLowerCase();
+    final isPhone = idLower.contains('phone') || idLower.contains('mobile') || idLower.contains('contact') ||
+                    labelLower.contains('phone') || labelLower.contains('mobile') || labelLower.contains('contact');
+    final isEmail = idLower.contains('email') || labelLower.contains('email');
+    final isWebsite = idLower.contains('website') || idLower.contains('web') ||
+                      labelLower.contains('website') || labelLower.contains('web');
+    final isLinkable = !isDesigner && value.trim().isNotEmpty && (isPhone || isEmail || isWebsite);
+
     return Positioned(
       left: posX * scale,
       top: posY * scale,
@@ -711,14 +748,31 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: style.fontSize * scale,
-                    fontFamily: style.fontFamily,
-                    color: Colors.black87,
-                  ),
-                ),
+                child: isLinkable
+                    ? GestureDetector(
+                        onTap: () => _launchFieldUrl(id, value),
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Text(
+                            value,
+                            style: TextStyle(
+                              fontSize: style.fontSize * scale,
+                              fontFamily: style.fontFamily,
+                              color: Colors.blue.shade700,
+                              decoration: TextDecoration.underline,
+                              decorationColor: Colors.blue.shade700,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Text(
+                        value,
+                        style: TextStyle(
+                          fontSize: style.fontSize * scale,
+                          fontFamily: style.fontFamily,
+                          color: Colors.black87,
+                        ),
+                      ),
               ),
             ],
           ),
@@ -786,6 +840,41 @@ class TourismInvoicePreviewWidget extends StatelessWidget {
       return Color(int.parse(buffer.toString(), radix: 16));
     } catch (_) {
       return Colors.black;
+    }
+  }
+
+  Future<void> _launchFieldUrl(String id, String value) async {
+    final cleanValue = value.trim();
+    if (cleanValue.isEmpty) return;
+
+    final idLower = id.toLowerCase();
+    Uri? uri;
+
+    if (idLower.contains('phone') || idLower.contains('mobile') || idLower.contains('contact')) {
+      final digits = cleanValue.replaceAll(RegExp(r'[^\d+]'), '');
+      uri = Uri(scheme: 'tel', path: digits);
+    } else if (idLower.contains('email')) {
+      uri = Uri(scheme: 'mailto', path: cleanValue);
+    } else {
+      // Treat as website
+      String urlStr = cleanValue;
+      if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
+        urlStr = 'https://$urlStr';
+      }
+      uri = Uri.tryParse(urlStr);
+    }
+
+    if (uri != null) {
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          // Fallback direct execution
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      } catch (e) {
+        debugPrint('Error launching url: $e');
+      }
     }
   }
 }

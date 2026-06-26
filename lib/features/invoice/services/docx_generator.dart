@@ -335,65 +335,206 @@ class DocxGeneratorService {
         );
       }
 
-      final headerTable = DocxTable(
-        width: totalWidthTwips,
+      // --- Single Header Table: Company Details + Logo (Row 1), Address (Row 2), Green Divider, and Invoice Details ---
+      final int leftAreaW = (totalWidthTwips * 0.65).toInt();
+      final int col1Width = (leftAreaW * 0.70).toInt();
+      final int col2Width = leftAreaW - col1Width;
+      final int col3Width = (totalWidthTwips * 0.02).toInt();
+      final int col4Width = totalWidthTwips - leftAreaW - col3Width;
+
+      final companyDetailsTableCellChildren = <DocxParagraph>[
+        DocxParagraph(
+          children: [
+            DocxText(
+              companyName,
+              fontSize: headerStyle.fontSize,
+              fontWeight: _getDocxWeight(headerStyle.fontWeight),
+              color: _getDocxColor(headerStyle.textColor) ?? primaryBlue,
+              fontFamily: headerStyle.fontFamily,
+            ),
+          ],
+        ),
+        DocxParagraph(
+          children: [
+            DocxText(
+              tagline,
+              fontSize: subheaderStyle.fontSize,
+              fontWeight: _getDocxWeight(subheaderStyle.fontWeight),
+              color: _getDocxColor(subheaderStyle.textColor) ?? primaryOrange,
+              fontFamily: subheaderStyle.fontFamily,
+            ),
+          ],
+        ),
+        DocxParagraph(
+          children: [
+            DocxText(
+              "Ph: $phone   Email: $email   Web: $web",
+              fontSize: 7.5,
+              fontFamily: 'Times New Roman',
+            ),
+          ],
+        ),
+      ];
+
+      final logoTableCellChildren = <DocxParagraph>[];
+      if (logoBytes != null) {
+        logoTableCellChildren.add(
+          DocxParagraph(
+            align: DocxAlign.center,
+            children: [
+              DocxInlineImage(
+                bytes: logoBytes,
+                extension: logoExt ?? 'png',
+                width: 100.0 * template.headerConfig.logoSize,
+                height: 45.0 * template.headerConfig.logoSize,
+              ),
+            ],
+          ),
+        );
+      } else {
+        logoTableCellChildren.add(
+          DocxParagraph(
+            align: DocxAlign.center,
+            children: [
+              DocxText(
+                'LN TOURISM',
+                fontWeight: DocxFontWeight.bold,
+                fontSize: 10,
+                color: primaryBlue,
+                fontFamily: 'Times New Roman',
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Nested Table inside Left Column to split into top (details & logo) and bottom (address)
+      final leftAreaTable = DocxTable(
+        width: leftAreaW,
         widthType: DocxWidthType.dxa,
         style: DocxTableStyle.plain,
         rows: [
           DocxTableRow(
             cells: [
-              // Left Cell: Company Details
               DocxTableCell(
-                width: leftColWidth,
+                width: col1Width,
+                children: companyDetailsTableCellChildren,
+              ),
+              DocxTableCell(
+                width: col2Width,
+                children: logoTableCellChildren,
+              ),
+            ],
+          ),
+          DocxTableRow(
+            cells: [
+              DocxTableCell(
+                width: leftAreaW,
+                colSpan: 2,
                 children: [
                   DocxParagraph(
                     children: [
                       DocxText(
-                        companyName,
-                        fontSize: headerStyle.fontSize,
-                        fontWeight: _getDocxWeight(headerStyle.fontWeight),
-                        color:
-                            _getDocxColor(headerStyle.textColor) ?? primaryBlue,
-                        fontFamily: headerStyle.fontFamily,
-                      ),
-                    ],
-                  ),
-                  DocxParagraph(
-                    children: [
-                      DocxText(
-                        tagline,
-                        fontSize: subheaderStyle.fontSize,
-                        fontWeight: _getDocxWeight(subheaderStyle.fontWeight),
-                        color:
-                            _getDocxColor(subheaderStyle.textColor) ??
-                            primaryOrange,
-                        fontFamily: subheaderStyle.fontFamily,
-                      ),
-                    ],
-                  ),
-                  DocxParagraph(
-                    children: [
-                      DocxText(
-                        "Ph: $phone   Email: $email   Web: $web",
-                        fontSize: 7,
-                        fontFamily: 'Times New Roman',
-                      ),
-                    ],
-                  ),
-                  DocxParagraph(
-                    children: [
-                      DocxText(
                         "Office Address : $address",
-                        fontSize: 7,
+                        fontSize: 7.5,
                         fontFamily: 'Times New Roman',
                       ),
                     ],
                   ),
                 ],
               ),
-              // Middle Cell: vertical green separator
+            ],
+          ),
+        ],
+      );
+
+      final invoiceBoxTable = DocxTable(
+        width: col4Width,
+        widthType: DocxWidthType.dxa,
+        style: DocxTableStyle(
+          borderTop: DocxBorderSide(
+            style: DocxBorder.single,
+            color: primaryGreen,
+            size: 8,
+          ),
+          borderBottom: DocxBorderSide(
+            style: DocxBorder.single,
+            color: primaryGreen,
+            size: 8,
+          ),
+          borderLeft: DocxBorderSide(
+            style: DocxBorder.single,
+            color: primaryGreen,
+            size: 8,
+          ),
+          borderRight: DocxBorderSide(
+            style: DocxBorder.single,
+            color: primaryGreen,
+            size: 8,
+          ),
+          borderInsideH: DocxBorderSide.none(),
+          borderInsideV: DocxBorderSide.none(),
+        ),
+        rows: [
+          DocxTableRow(
+            cells: [
               DocxTableCell(
-                width: middleColWidth,
+                colSpan: 2,
+                shadingFill: '499F34',
+                children: [
+                  DocxParagraph(
+                    align: DocxAlign.center,
+                    children: [
+                      DocxText(
+                        "INVOICE",
+                        color: whiteColor,
+                        fontWeight: DocxFontWeight.bold,
+                        fontSize: 10,
+                        fontFamily: 'Times New Roman',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          _metaRow("Invoice No.", invoiceNo.toString()),
+          _metaRow("Invoice Date", invoiceDate.toString()),
+          _metaRow("Booking Ref.", bookingRef.toString()),
+          _metaRow("Booking Date", bookingDate.toString()),
+          _metaRow("PAN No.", companyPan.toString()),
+          _metaRow("GSTIN", companyGstIn.toString()),
+        ],
+      );
+
+      final headerTable = DocxTable(
+        width: totalWidthTwips,
+        widthType: DocxWidthType.dxa,
+        style: DocxTableStyle(
+          borderTop: DocxBorderSide(
+            style: DocxBorder.dashed,
+            color: greyBorderColor,
+            size: 4,
+          ),
+          borderBottom: DocxBorderSide(
+            style: DocxBorder.dashed,
+            color: greyBorderColor,
+            size: 4,
+          ),
+          borderLeft: DocxBorderSide.none(),
+          borderRight: DocxBorderSide.none(),
+          borderInsideH: DocxBorderSide.none(),
+          borderInsideV: DocxBorderSide.none(),
+        ),
+        rows: [
+          DocxTableRow(
+            cells: [
+              DocxTableCell(
+                width: leftAreaW,
+                children: [leftAreaTable],
+              ),
+              DocxTableCell(
+                width: col3Width,
                 borderLeft: DocxBorderSide(
                   style: DocxBorder.thick,
                   color: primaryGreen,
@@ -401,69 +542,9 @@ class DocxGeneratorService {
                 ),
                 children: [DocxParagraph(children: [])],
               ),
-              // Right Cell: green-bordered metadata box
               DocxTableCell(
-                width: rightColWidth,
-                children: [
-                  DocxTable(
-                    width: rightColWidth,
-                    widthType: DocxWidthType.dxa,
-                    style: DocxTableStyle(
-                      borderTop: DocxBorderSide(
-                        style: DocxBorder.single,
-                        color: primaryGreen,
-                        size: 8,
-                      ),
-                      borderBottom: DocxBorderSide(
-                        style: DocxBorder.single,
-                        color: primaryGreen,
-                        size: 8,
-                      ),
-                      borderLeft: DocxBorderSide(
-                        style: DocxBorder.single,
-                        color: primaryGreen,
-                        size: 8,
-                      ),
-                      borderRight: DocxBorderSide(
-                        style: DocxBorder.single,
-                        color: primaryGreen,
-                        size: 8,
-                      ),
-                      borderInsideH: DocxBorderSide.none(),
-                      borderInsideV: DocxBorderSide.none(),
-                    ),
-                    rows: [
-                      DocxTableRow(
-                        cells: [
-                          DocxTableCell(
-                            colSpan: 2,
-                            shadingFill: '499F34',
-                            children: [
-                              DocxParagraph(
-                                align: DocxAlign.center,
-                                children: [
-                                  DocxText(
-                                    "INVOICE",
-                                    color: whiteColor,
-                                    fontWeight: DocxFontWeight.bold,
-                                    fontSize: 10,
-                                    fontFamily: 'Times New Roman',
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      _metaRow("Invoice No.", invoiceNo.toString()),
-                      _metaRow("Invoice Date", invoiceDate.toString()),
-                      _metaRow("Booking Ref.", bookingRef.toString()),
-                      _metaRow("Booking Date", bookingDate.toString()),
-                      _metaRow("PAN No.", companyPan.toString()),
-                      _metaRow("GSTIN", companyGstIn.toString()),
-                    ],
-                  ),
-                ],
+                width: col4Width,
+                children: [invoiceBoxTable],
               ),
             ],
           ),
@@ -1224,8 +1305,8 @@ class DocxGeneratorService {
                   DocxInlineImage(
                     bytes: sigBytes,
                     extension: sigExt ?? 'png',
-                    width: 60,
-                    height: 22,
+                    width: 60.0,
+                    height: 22.0,
                   ),
                 ],
               ),
@@ -1997,8 +2078,8 @@ class DocxGeneratorService {
                                 DocxInlineImage(
                                   bytes: sigBytes,
                                   extension: sigExt ?? 'png',
-                                  width: 60,
-                                  height: 25,
+                                  width: 60.0,
+                                  height: 25.0,
                                 ),
                               ],
                             )

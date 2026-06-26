@@ -463,7 +463,7 @@ class PdfGeneratorService {
           ),
         ),
       ),
-      // Green divider
+      // Vertical Green Divider
       pw.Positioned(
         left: layout.headerDividerX * scale,
         top: layout.headerTopLineY * scale,

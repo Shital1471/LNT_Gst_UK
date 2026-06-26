@@ -38,6 +38,8 @@ class TourismLayoutConfig {
   double _invBoxWidth = 0.0;
   double _invBoxHeight = 0.0;
   double _invBoxHeaderHeight = 20.0;
+  double _divider1Y = 0.0;
+  double _divider2Y = 0.0;
 
   double _billToTopLineY = 0.0;
   double _billToHeight = 0.0;
@@ -102,6 +104,8 @@ class TourismLayoutConfig {
   double get logoY => _logoY;
   double get logoWidth => _logoWidth;
   double get logoHeight => _logoHeight;
+  double get divider1Y => _divider1Y;
+  double get divider2Y => _divider2Y;
 
   // Invoice Box
   double get invBoxX => _invBoxX;
@@ -234,38 +238,106 @@ class TourismLayoutConfig {
       if (block.id == 'header') {
         _headerTopLineY = currentY;
 
-        double companyHeight = 8.0;
-        for (final f in companyFields) {
+        // Left column width is 65% of the content width minus some margin
+        final double leftColW = (contentW * 0.65) - 12.0;
+
+        _logoWidth = 100.0 * template.headerConfig.logoSize;
+        _logoHeight = 45.0 * template.headerConfig.logoSize;
+
+        // Space remaining for company details text block
+        final double textW = leftColW - _logoWidth - 12.0;
+
+        // Separate address from other company details
+        final companyDetailsFields = companyFields.where((f) => f.id != 'company_address').toList();
+        final companyAddressField = companyFields.firstWhere(
+          (f) => f.id == 'company_address',
+          orElse: () => FieldSchema(id: 'company_address', label: 'Office Address', valueType: 'text', isVisible: false),
+        );
+
+        // Calculate company details text height (excluding address)
+        double companyDetailsHeight = 0.0;
+        for (final f in companyDetailsFields) {
           final style = f.id == 'company_name'
               ? headerStyle
               : (f.id == 'company_tagline' ? subheaderStyle : bodyStyle);
           final fh = getFieldHeight(f, style);
-          _fieldLayouts[f.id] = FieldLayout(leftMargin, _headerTopLineY + companyHeight, contentW * 0.40, fh);
-          companyHeight += fh + 2.0;
+          companyDetailsHeight += fh + 2.0;
         }
 
-        _logoX = leftMargin + (contentW * 0.43);
-        _logoY = _headerTopLineY + 8.0;
-        _logoWidth = 100.0 * template.headerConfig.logoSize;
-        _logoHeight = 45.0 * template.headerConfig.logoSize;
-        final logoTotalHeight = _logoHeight + 16.0;
+        // Row 1 is the side-by-side section of company details and logo
+        final double row1Height = [companyDetailsHeight, _logoHeight].reduce((a, b) => a > b ? a : b);
 
+        // Row 2 is the Office Address underneath row 1
+        final double addressHeight = getFieldHeight(companyAddressField, bodyStyle);
+        final double leftAreaHeight = row1Height + (companyAddressField.isVisible ? addressHeight + 2.0 : 0.0);
+
+        // Calculate invoice box size
         _invBoxX = leftMargin + (contentW * 0.65) + 12.0;
-        _invBoxY = _headerTopLineY + 12.0;
         _invBoxWidth = contentW - (_invBoxX - leftMargin);
         _invBoxHeaderHeight = 20.0;
 
         double invFieldsHeight = 0.0;
         for (final f in invoiceFields) {
           final fh = getFieldHeight(f, bodyStyle);
-          _fieldLayouts[f.id] = FieldLayout(_invBoxX + 6.0, _invBoxY + _invBoxHeaderHeight + 4.0 + invFieldsHeight, _invBoxWidth - 12.0, fh);
           invFieldsHeight += fh + 2.0;
         }
         _invBoxHeight = _invBoxHeaderHeight + invFieldsHeight + 8.0;
 
-        _headerHeight = [companyHeight + 8.0, logoTotalHeight, _invBoxHeight + 12.0, template.headerConfig.headerHeight].reduce((a, b) => a > b ? a : b);
+        // Determine total header block height
+        _headerHeight = [
+          leftAreaHeight + 16.0,
+          (invoiceSec.isVisible ? _invBoxHeight : 0.0) + 16.0,
+          template.headerConfig.headerHeight
+        ].reduce((a, b) => a > b ? a : b);
+
         _headerBottomLineY = _headerTopLineY + _headerHeight;
         _headerDividerX = leftMargin + (contentW * 0.65);
+
+        // Center the left column elements vertically inside the header height
+        final double leftStartY = _headerTopLineY + (_headerHeight - leftAreaHeight) / 2;
+
+        _logoY = leftStartY + (row1Height - _logoHeight) / 2;
+        _logoX = leftMargin + textW + 12.0;
+
+        _invBoxY = _headerTopLineY + (_headerHeight - _invBoxHeight) / 2;
+
+        // Layout stacked company details fields
+        double companyYOffset = 0.0;
+        for (final f in companyDetailsFields) {
+          final style = f.id == 'company_name'
+              ? headerStyle
+              : (f.id == 'company_tagline' ? subheaderStyle : bodyStyle);
+          final fh = getFieldHeight(f, style);
+          _fieldLayouts[f.id] = FieldLayout(leftMargin, leftStartY + companyYOffset, textW, fh);
+          companyYOffset += fh + 2.0;
+        }
+
+        // Layout company address field below details + logo
+        if (companyAddressField.isVisible) {
+          _fieldLayouts['company_address'] = FieldLayout(
+            leftMargin,
+            leftStartY + row1Height + 2.0,
+            leftColW,
+            addressHeight,
+          );
+        }
+
+        // Layout invoice details fields
+        double invFieldsYOffset = 0.0;
+        for (final f in invoiceFields) {
+          final fh = getFieldHeight(f, bodyStyle);
+          _fieldLayouts[f.id] = FieldLayout(
+            _invBoxX + 6.0,
+            _invBoxY + _invBoxHeaderHeight + 4.0 + invFieldsYOffset,
+            _invBoxWidth - 12.0,
+            fh,
+          );
+          invFieldsYOffset += fh + 2.0;
+        }
+
+        // Deprecated inner horizontal dividers set to 0.0
+        _divider1Y = 0.0;
+        _divider2Y = 0.0;
 
         currentY += _headerHeight + template.sectionGap;
       }
