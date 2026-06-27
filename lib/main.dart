@@ -451,63 +451,107 @@ class AppLayout extends ConsumerWidget {
     ];
 
     final isLargeScreen = MediaQuery.of(context).size.width >= 950;
+    
+    final saffronColor = isDark ? AppTheme.saffronDark : AppTheme.saffronLight;
+    final sidebarBg = isDark ? AppTheme.panelRaisedDark : AppTheme.panelRaisedLight;
+    final voidBg = isDark ? AppTheme.voidDark : AppTheme.voidLight;
+    final hairlineColor = isDark ? AppTheme.hairlineDark : AppTheme.hairlineLight;
+    final paperColor = isDark ? AppTheme.paperDark : AppTheme.paperLight;
+    final mistColor = isDark ? AppTheme.mistDark : AppTheme.mistLight;
 
     if (isLargeScreen) {
-      // Desktop Standard NavigationRail Layout
+      // Desktop Custom Sidebar Layout
       return Scaffold(
+        backgroundColor: voidBg,
         body: Row(
           children: [
-            NavigationRail(
-              selectedIndex: currentIndex,
-              onDestinationSelected: onTabChange,
-              labelType: NavigationRailLabelType.all,
-              backgroundColor: isDark ? const Color(0xFF151C2C) : Colors.white,
-              selectedIconTheme: IconThemeData(color: theme.colorScheme.primary),
-              selectedLabelTextStyle: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.w500, fontSize: 11),
-              unselectedIconTheme: IconThemeData(color: theme.colorScheme.onSurface.withOpacity(0.5)),
-              unselectedLabelTextStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.5), fontWeight: FontWeight.w300, fontSize: 11),
-              leading: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16.0),
-                child: Column(
-                  children: [
-                    _buildLogo(company, theme.colorScheme),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: 72,
-                      child: Text(
-                        company?.name ?? 'GST Invoice',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w400,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    IconButton(
-                      icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 18),
-                      color: theme.colorScheme.primary,
-                      onPressed: () {
-                        ref.read(settingsProvider.notifier).toggleTheme(!isDark);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    const Divider(height: 1),
-                  ],
+            // Custom Sidebar
+            Container(
+              width: 260,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                color: sidebarBg,
+                border: Border(
+                  right: BorderSide(color: hairlineColor, width: 1.0),
                 ),
               ),
-              destinations: const [
-                NavigationRailDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: Text('Dashboard')),
-                NavigationRailDestination(icon: Icon(Icons.edit_note_outlined), selectedIcon: Icon(Icons.edit_note), label: Text('Create')),
-                NavigationRailDestination(icon: Icon(Icons.history_outlined), selectedIcon: Icon(Icons.history), label: Text('History')),
-                NavigationRailDestination(icon: Icon(Icons.analytics_outlined), selectedIcon: Icon(Icons.analytics), label: Text('Reports')),
-                NavigationRailDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: Text('Settings')),
-              ],
+              child: Column(
+                children: [
+                  const SizedBox(height: 16),
+                  // Workspace Title & Avatar
+                  _buildSidebarWorkspaceHeader(company, theme),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  
+                  // Menu Items
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      children: [
+                        _buildSidebarSectionTitle('Workspace', theme),
+                        _buildSidebarItem(
+                          context: context,
+                          icon: Icons.dashboard_outlined,
+                          activeIcon: Icons.dashboard,
+                          label: 'Dashboard',
+                          index: 0,
+                          currentIndex: currentIndex,
+                          onTap: onTabChange,
+                        ),
+                        _buildSidebarItem(
+                          context: context,
+                          icon: Icons.add_circle_outline_rounded,
+                          activeIcon: Icons.add_circle,
+                          label: 'Create invoice',
+                          index: 1,
+                          currentIndex: currentIndex,
+                          onTap: onTabChange,
+                        ),
+                        _buildSidebarItem(
+                          context: context,
+                          icon: Icons.history_outlined,
+                          activeIcon: Icons.history,
+                          label: 'History',
+                          index: 2,
+                          currentIndex: currentIndex,
+                          onTap: onTabChange,
+                        ),
+                        
+                        _buildSidebarSectionTitle('Insights', theme),
+                        _buildSidebarItem(
+                          context: context,
+                          icon: Icons.analytics_outlined,
+                          activeIcon: Icons.analytics,
+                          label: 'Reports',
+                          index: 3,
+                          currentIndex: currentIndex,
+                          onTap: onTabChange,
+                        ),
+                        
+                        _buildSidebarSectionTitle('Account', theme),
+                        _buildSidebarItem(
+                          context: context,
+                          icon: Icons.settings_outlined,
+                          activeIcon: Icons.settings,
+                          label: 'Settings',
+                          index: 4,
+                          currentIndex: currentIndex,
+                          onTap: onTabChange,
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Theme Toggle at bottom
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: _buildSidebarThemeSwitcher(context, isDark, ref),
+                  ),
+                ],
+              ),
             ),
-            const VerticalDivider(width: 1, thickness: 1),
+            
+            // Content Screen
             Expanded(
               child: screens[currentIndex],
             ),
@@ -515,15 +559,18 @@ class AppLayout extends ConsumerWidget {
         ),
       );
     } else {
-      // Mobile / Tablet Bottom Bar Layout + Standard Material Drawer
+      // Mobile / Tablet Bottom Bar Layout + Custom Sidebar Drawer
       return Scaffold(
         key: layoutScaffoldKey,
+        backgroundColor: voidBg,
         drawer: Drawer(
+          backgroundColor: sidebarBg,
           child: Column(
             children: [
               DrawerHeader(
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF151C2C) : const Color(0xFFF8FAFC),
+                  border: Border(bottom: BorderSide(color: hairlineColor)),
                 ),
                 child: Row(
                   children: [
@@ -536,20 +583,21 @@ class AppLayout extends ConsumerWidget {
                         children: [
                           Text(
                             company?.name ?? 'GST Invoice Pro',
-                            style: TextStyle(
+                            style: AppTheme.uiFont(
                               fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: theme.colorScheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                              color: paperColor,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 4),
                           Text(
                             'v1.0.0 • Standard',
-                            style: TextStyle(
+                            style: AppTheme.uiFont(
                               fontSize: 11,
-                              color: theme.colorScheme.onSurface.withOpacity(0.5),
+                              fontWeight: FontWeight.w500,
+                              color: mistColor,
                             ),
                           ),
                         ],
@@ -558,27 +606,79 @@ class AppLayout extends ConsumerWidget {
                   ],
                 ),
               ),
-              ListTile(
-                leading: Icon(isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined, size: 20),
-                title: Text(isDark ? 'Dark Theme' : 'Light Theme', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400)),
-                trailing: Switch(
-                  value: isDark,
-                  onChanged: (val) {
-                    ref.read(settingsProvider.notifier).toggleTheme(val);
-                  },
-                ),
-              ),
-              const Divider(),
               Expanded(
                 child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   children: [
-                    _buildDrawerTile(context, Icons.dashboard_outlined, 'Dashboard', 0, currentIndex, onTabChange),
-                    _buildDrawerTile(context, Icons.edit_note_outlined, 'Create Invoice', 1, currentIndex, onTabChange),
-                    _buildDrawerTile(context, Icons.history_outlined, 'History', 2, currentIndex, onTabChange),
-                    _buildDrawerTile(context, Icons.analytics_outlined, 'Reports', 3, currentIndex, onTabChange),
-                    _buildDrawerTile(context, Icons.settings_outlined, 'Settings', 4, currentIndex, onTabChange),
+                    _buildSidebarSectionTitle('Workspace', theme),
+                    _buildSidebarItem(
+                      context: context,
+                      icon: Icons.dashboard_outlined,
+                      activeIcon: Icons.dashboard,
+                      label: 'Dashboard',
+                      index: 0,
+                      currentIndex: currentIndex,
+                      onTap: (idx) {
+                        onTabChange(idx);
+                        Navigator.pop(context); // Close drawer
+                      },
+                    ),
+                    _buildSidebarItem(
+                      context: context,
+                      icon: Icons.add_circle_outline_rounded,
+                      activeIcon: Icons.add_circle,
+                      label: 'Create invoice',
+                      index: 1,
+                      currentIndex: currentIndex,
+                      onTap: (idx) {
+                        onTabChange(idx);
+                        Navigator.pop(context);
+                      },
+                    ),
+                    _buildSidebarItem(
+                      context: context,
+                      icon: Icons.history_outlined,
+                      activeIcon: Icons.history,
+                      label: 'History',
+                      index: 2,
+                      currentIndex: currentIndex,
+                      onTap: (idx) {
+                        onTabChange(idx);
+                        Navigator.pop(context);
+                      },
+                    ),
+                    _buildSidebarSectionTitle('Insights', theme),
+                    _buildSidebarItem(
+                      context: context,
+                      icon: Icons.analytics_outlined,
+                      activeIcon: Icons.analytics,
+                      label: 'Reports',
+                      index: 3,
+                      currentIndex: currentIndex,
+                      onTap: (idx) {
+                        onTabChange(idx);
+                        Navigator.pop(context);
+                      },
+                    ),
+                    _buildSidebarSectionTitle('Account', theme),
+                    _buildSidebarItem(
+                      context: context,
+                      icon: Icons.settings_outlined,
+                      activeIcon: Icons.settings,
+                      label: 'Settings',
+                      index: 4,
+                      currentIndex: currentIndex,
+                      onTap: (idx) {
+                        onTabChange(idx);
+                        Navigator.pop(context);
+                      },
+                    ),
                   ],
                 ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: _buildSidebarThemeSwitcher(context, isDark, ref),
               ),
             ],
           ),
@@ -591,12 +691,15 @@ class AppLayout extends ConsumerWidget {
           currentIndex: currentIndex,
           onTap: onTabChange,
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: Theme.of(context).colorScheme.primary,
-          unselectedItemColor: Colors.grey,
+          backgroundColor: sidebarBg,
+          selectedItemColor: saffronColor,
+          unselectedItemColor: mistColor,
+          selectedLabelStyle: AppTheme.uiFont(fontSize: 11, fontWeight: FontWeight.w600),
+          unselectedLabelStyle: AppTheme.uiFont(fontSize: 11, fontWeight: FontWeight.w400),
           showUnselectedLabels: true,
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), activeIcon: Icon(Icons.dashboard), label: 'Dashboard'),
-            BottomNavigationBarItem(icon: Icon(Icons.edit_note_outlined), activeIcon: Icon(Icons.edit_note), label: 'Create'),
+            BottomNavigationBarItem(icon: Icon(Icons.add_circle_outline_rounded), activeIcon: Icon(Icons.add_circle), label: 'Create'),
             BottomNavigationBarItem(icon: Icon(Icons.history_outlined), activeIcon: Icon(Icons.history), label: 'History'),
             BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), activeIcon: Icon(Icons.analytics), label: 'Reports'),
             BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), activeIcon: Icon(Icons.settings), label: 'Settings'),
@@ -606,30 +709,177 @@ class AppLayout extends ConsumerWidget {
     }
   }
 
-  Widget _buildDrawerTile(
-    BuildContext context,
-    IconData icon,
-    String label,
-    int index,
-    int currentIndex,
-    ValueChanged<int> onTabChange,
-  ) {
-    final isSelected = currentIndex == index;
-    final theme = Theme.of(context);
-    return ListTile(
-      leading: Icon(icon, color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.6)),
-      title: Text(
-        label,
-        style: TextStyle(
-          fontWeight: isSelected ? FontWeight.w500 : FontWeight.w300,
-          color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+  Widget _buildSidebarWorkspaceHeader(CompanyProfile? company, ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    final paperColor = isDark ? AppTheme.paperDark : AppTheme.paperLight;
+    final mistColor = isDark ? AppTheme.mistDark : AppTheme.mistLight;
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          _buildLogo(company, theme.colorScheme),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  company?.name ?? 'Khata Workspace',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.uiFont(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: paperColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'GST Workspace',
+                  style: AppTheme.uiFont(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: mistColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidebarSectionTitle(String title, ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    final mistDimColor = isDark ? AppTheme.mistDimDark : AppTheme.mistDimLight;
+    
+    return Padding(
+      padding: const EdgeInsets.only(left: 12.0, top: 18.0, bottom: 8.0),
+      child: Text(
+        title.toUpperCase(),
+        style: AppTheme.uiFont(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: mistDimColor,
+          letterSpacing: 0.8,
         ),
       ),
-      selected: isSelected,
-      onTap: () {
-        onTabChange(index);
-        Navigator.pop(context); // Close Drawer
-      },
+    );
+  }
+
+  Widget _buildSidebarItem({
+    required BuildContext context,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    required int index,
+    required int currentIndex,
+    required ValueChanged<int> onTap,
+  }) {
+    final isSelected = index == currentIndex;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    final saffronColor = isDark ? AppTheme.saffronDark : AppTheme.saffronLight;
+    final saffronDimColor = isDark ? AppTheme.saffronDimDark : AppTheme.saffronDimLight;
+    final paperColor = isDark ? AppTheme.paperDark : AppTheme.paperLight;
+    final mistColor = isDark ? AppTheme.mistDark : AppTheme.mistLight;
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      child: InkWell(
+        onTap: () => onTap(index),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          height: 38,
+          decoration: BoxDecoration(
+            color: isSelected ? saffronDimColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              // Left 3px accent tab
+              Container(
+                width: 3,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: isSelected ? saffronColor : Colors.transparent,
+                  borderRadius: const BorderRadius.horizontal(right: Radius.circular(2)),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Icon(
+                isSelected ? activeIcon : icon,
+                size: 18,
+                color: isSelected ? saffronColor : mistColor,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTheme.uiFont(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    color: isSelected ? saffronColor : paperColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarThemeSwitcher(BuildContext context, bool isDark, WidgetRef ref) {
+    final saffronColor = isDark ? AppTheme.saffronDark : AppTheme.saffronLight;
+    final paperColor = isDark ? AppTheme.paperDark : AppTheme.paperLight;
+    final panelColor = isDark ? AppTheme.panelDark : AppTheme.panelLight;
+    final hairlineColor = isDark ? AppTheme.hairlineDark : AppTheme.hairlineLight;
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: panelColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: hairlineColor),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                size: 18,
+                color: saffronColor,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                isDark ? 'Dark mode' : 'Light mode',
+                style: AppTheme.uiFont(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: paperColor,
+                ),
+              ),
+            ],
+          ),
+          Transform.scale(
+            scale: 0.8,
+            child: Switch(
+              value: isDark,
+              activeColor: saffronColor,
+              onChanged: (val) {
+                ref.read(settingsProvider.notifier).toggleTheme(val);
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
