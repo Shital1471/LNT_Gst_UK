@@ -8,6 +8,8 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../../core/theme/app_theme.dart';
 import '../../../core/database/app_database.dart';
 import '../../invoice/views/invoice_history_screen.dart';
+import '../../../core/providers/shortcuts_provider.dart';
+import '../../../core/utils/navigation.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -75,7 +77,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       }
 
       final csvContent = buffer.toString();
-      final path = await FilePicker.platform.saveFile(
+      final path = await FilePicker.saveFile(
         dialogTitle: 'Export CSV Report',
         fileName: 'gst_tax_report_${DateFormat('yyyyMMdd').format(_startDate)}_to_${DateFormat('yyyyMMdd').format(_endDate)}.csv',
       );
@@ -196,7 +198,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       );
 
       final pdfBytes = await pdf.save();
-      final path = await FilePicker.platform.saveFile(
+      final path = await FilePicker.saveFile(
         dialogTitle: 'Export PDF Report',
         fileName: 'gst_tax_report_${DateFormat('yyyyMMdd').format(_startDate)}_to_${DateFormat('yyyyMMdd').format(_endDate)}.pdf',
       );
@@ -243,10 +245,19 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   @override
   Widget build(BuildContext context) {
     final invoicesVal = ref.watch(invoicesStreamProvider);
+    final shortcuts = ref.watch(shortcutsProvider);
+
+    final isWide = MediaQuery.of(context).size.width >= 950;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reports & Taxation'),
+        leading: isWide
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.menu_rounded),
+                onPressed: () => layoutScaffoldKey.currentState?.openDrawer(),
+              ),
       ),
       body: invoicesVal.when(
         data: (list) {
@@ -265,117 +276,322 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           final totalGst = filtered.fold(0.0, (s, i) => s + i.totalGst);
           final totalRevenue = filtered.fold(0.0, (s, i) => s + i.grandTotal);
 
-          return Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Filter presets row
-                Row(
-                  children: [
-                    _presetButton('Today', 'today'),
-                    const SizedBox(width: 8),
-                    _presetButton('Last 30 Days', '30days'),
-                    const SizedBox(width: 8),
-                    _presetButton('This Month', 'thismonth'),
-                    const SizedBox(width: 8),
-                    _presetButton('This Year', 'thisyear'),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: Text('Custom Range: ${_df.format(_startDate)} - ${_df.format(_endDate)}'),
-                      selected: _activePreset == 'custom',
-                      onSelected: (_) => _selectCustomRange(),
-                    ),
-                    const Spacer(),
-                    
-                    // Export Actions
-                    ElevatedButton.icon(
-                      onPressed: filtered.isEmpty ? null : () => _exportCsv(filtered),
-                      icon: const Icon(Icons.table_view),
-                      label: const Text('Export Excel/CSV'),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.deepBlue),
-                      onPressed: filtered.isEmpty ? null : () => _exportPdf(filtered),
-                      icon: const Icon(Icons.picture_as_pdf),
-                      label: const Text('Export PDF Report'),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // Aggregate Metrics Cards Grid
-                Row(
-                  children: [
-                    Expanded(
-                      child: _summaryCard('Taxable Value', totalTaxable, Colors.blue),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _summaryCard('CGST Collected', totalCgst, AppTheme.accentOrange),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _summaryCard('SGST Collected', totalSgst, AppTheme.accentOrange),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _summaryCard('Total GST Collected', totalGst, AppTheme.primaryGreen),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _summaryCard('Total Revenue', totalRevenue, AppTheme.deepBlue, isRevenue: true),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 24),
+          // Local shortcut bindings
+          final Map<ShortcutActivator, VoidCallback> bindings = {};
+          final excelShortcut = shortcuts['exportExcel'];
+          if (excelShortcut != null) {
+            bindings[SingleActivator(excelShortcut.key, control: excelShortcut.control, shift: excelShortcut.shift, alt: excelShortcut.alt)] = () {
+              if (filtered.isNotEmpty) {
+                _exportCsv(filtered);
+              }
+            };
+          }
+          final pdfReportShortcut = shortcuts['exportPdfReport'];
+          if (pdfReportShortcut != null) {
+            bindings[SingleActivator(pdfReportShortcut.key, control: pdfReportShortcut.control, shift: pdfReportShortcut.shift, alt: pdfReportShortcut.alt)] = () {
+              if (filtered.isNotEmpty) {
+                _exportPdf(filtered);
+              }
+            };
+          }
 
-                // Transactions Log List
-                const Text(
-                  'Sales Ledger Log',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue),
-                ),
-                const SizedBox(height: 12),
-                
-                Expanded(
-                  child: Card(
-                    child: filtered.isEmpty
-                        ? const Center(child: Text('No invoices found in selected date range.'))
-                        : SingleChildScrollView(
-                            scrollDirection: Axis.vertical,
-                            child: FittedBox(
-                              fit: BoxFit.contain,
-                              alignment: Alignment.topLeft,
-                              child: DataTable(
-                                columns: const [
-                                  DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Invoice No', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Customer', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Taxable Value', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Total GST', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Grand Total', style: TextStyle(fontWeight: FontWeight.bold))),
-                                ],
-                                rows: filtered.map((inv) {
-                                  return DataRow(
-                                    cells: [
-                                      DataCell(Text(_df.format(inv.invoiceDate))),
-                                      DataCell(Text(inv.invoiceNumber)),
-                                      DataCell(Text(inv.customerName)),
-                                      DataCell(Text(_currency.format(inv.subTotal))),
-                                      DataCell(Text(_currency.format(inv.totalGst))),
-                                      DataCell(Text(_currency.format(inv.grandTotal))),
-                                    ],
-                                  );
-                                }).toList(),
-                              ),
+          return Focus(
+            autofocus: true,
+            child: CallbackShortcuts(
+              bindings: bindings,
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Filter presets and export actions
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isWide = constraints.maxWidth >= 950;
+                        final theme = Theme.of(context);
+                        
+                        final presetList = [
+                          _presetButton('Today', 'today'),
+                          _presetButton('Last 30 Days', '30days'),
+                          _presetButton('This Month', 'thismonth'),
+                          _presetButton('This Year', 'thisyear'),
+                           _buildChoiceChip(
+                            label: 'Custom Range: ${_df.format(_startDate)} - ${_df.format(_endDate)}',
+                            selected: _activePreset == 'custom',
+                            onSelected: (_) => _selectCustomRange(),
+                          ),
+                        ];
+
+                        final exportButtons = [
+                          Tooltip(
+                            message: excelShortcut != null
+                                ? 'Export Excel/CSV (${excelShortcut.displayString})'
+                                : 'Export Excel/CSV',
+                            child: ElevatedButton.icon(
+                              onPressed: filtered.isEmpty ? null : () => _exportCsv(filtered),
+                              icon: const Icon(Icons.table_view_rounded, size: 18),
+                              label: const Text('Export CSV'),
                             ),
                           ),
-                  ),
+                          const SizedBox(width: 8),
+                          Tooltip(
+                            message: pdfReportShortcut != null
+                                ? 'Export PDF Report (${pdfReportShortcut.displayString})'
+                                : 'Export PDF Report',
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.colorScheme.primary,
+                                foregroundColor: theme.colorScheme.onPrimary,
+                              ),
+                              onPressed: filtered.isEmpty ? null : () => _exportPdf(filtered),
+                              icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                              label: const Text('Export PDF'),
+                            ),
+                          ),
+                        ];
+
+                        if (isWide) {
+                          return Row(
+                            children: [
+                              Expanded(
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: presetList,
+                                ),
+                              ),
+                              Row(children: exportButtons),
+                            ],
+                          );
+                        } else {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: presetList,
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: exportButtons,
+                              ),
+                            ],
+                          );
+                        }
+                      },
+                    ),
+                
+                    const SizedBox(height: 24),
+                
+                    // Aggregate Metrics Cards Grid
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isWide = constraints.maxWidth >= 1100;
+                        final isMedium = constraints.maxWidth >= 650 && constraints.maxWidth < 1100;
+                        final theme = Theme.of(context);
+
+                        if (isWide) {
+                          return Row(
+                            children: [
+                              Expanded(
+                                child: _summaryCard('Taxable Value', totalTaxable, Colors.blue),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _summaryCard('CGST Collected', totalCgst, AppTheme.accentOrange),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _summaryCard('SGST Collected', totalSgst, AppTheme.accentOrange),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _summaryCard('Total GST Collected', totalGst, theme.colorScheme.primary),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _summaryCard('Total Revenue', totalRevenue, theme.colorScheme.primary, isRevenue: true),
+                              ),
+                            ],
+                          );
+                        } else if (isMedium) {
+                          return Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _summaryCard('Taxable Value', totalTaxable, Colors.blue),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _summaryCard('Total GST Collected', totalGst, theme.colorScheme.primary),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _summaryCard('CGST Collected', totalCgst, AppTheme.accentOrange),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _summaryCard('SGST Collected', totalSgst, AppTheme.accentOrange),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              _summaryCard('Total Revenue', totalRevenue, theme.colorScheme.primary, isRevenue: true),
+                            ],
+                          );
+                        } else {
+                          return Column(
+                            children: [
+                              _summaryCard('Taxable Value', totalTaxable, Colors.blue),
+                              const SizedBox(height: 10),
+                              _summaryCard('CGST Collected', totalCgst, AppTheme.accentOrange),
+                              const SizedBox(height: 10),
+                              _summaryCard('SGST Collected', totalSgst, AppTheme.accentOrange),
+                              const SizedBox(height: 10),
+                              _summaryCard('Total GST Collected', totalGst, theme.colorScheme.primary),
+                              const SizedBox(height: 10),
+                              _summaryCard('Total Revenue', totalRevenue, theme.colorScheme.primary, isRevenue: true),
+                            ],
+                          );
+                        }
+                      },
+                    ),
+                    
+                    const SizedBox(height: 28),
+
+                    // Transactions Log List
+                    Row(
+                      children: [
+                        Icon(Icons.receipt_long_rounded, color: Theme.of(context).colorScheme.primary, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Sales Ledger Log',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            letterSpacing: -0.2,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    Expanded(
+                      child: Card(
+                        child: filtered.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'No invoices found in selected date range.',
+                                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                                ),
+                              )
+                            : Container(
+                                padding: const EdgeInsets.all(12),
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.vertical,
+                                  child: FittedBox(
+                                    fit: BoxFit.contain,
+                                    alignment: Alignment.topLeft,
+                                    child: DataTable(
+                                      headingRowColor: WidgetStateProperty.all(
+                                        Theme.of(context).brightness == Brightness.dark
+                                            ? Colors.white.withOpacity(0.02)
+                                            : Colors.black.withOpacity(0.01),
+                                      ),
+                                      columns: [
+                                        DataColumn(
+                                          label: Text(
+                                            'Date',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: Theme.of(context).colorScheme.onSurface),
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Invoice No',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: Theme.of(context).colorScheme.onSurface),
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Customer',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: Theme.of(context).colorScheme.onSurface),
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Taxable Value',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: Theme.of(context).colorScheme.onSurface),
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Total GST',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: Theme.of(context).colorScheme.onSurface),
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Grand Total',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: Theme.of(context).colorScheme.onSurface),
+                                          ),
+                                        ),
+                                      ],
+                                      rows: filtered.map((inv) {
+                                        final theme = Theme.of(context);
+                                        final rowTextStyle = TextStyle(color: theme.colorScheme.onSurface);
+                                        return DataRow(
+                                          cells: [
+                                            DataCell(Text(_df.format(inv.invoiceDate), style: rowTextStyle)),
+                                            DataCell(
+                                              Text(
+                                                inv.invoiceNumber,
+                                                style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
+                                              ),
+                                            ),
+                                            DataCell(Text(inv.customerName, style: rowTextStyle)),
+                                            DataCell(Text(_currency.format(inv.subTotal), style: rowTextStyle)),
+                                            DataCell(Text(_currency.format(inv.totalGst), style: rowTextStyle)),
+                                            DataCell(
+                                              Text(
+                                                _currency.format(inv.grandTotal),
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: theme.colorScheme.primary,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           );
         },
@@ -385,9 +601,32 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
-  Widget _presetButton(String label, String preset) {
+  Widget _buildChoiceChip({
+    required String label,
+    required bool selected,
+    required ValueChanged<bool> onSelected,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return ChoiceChip(
       label: Text(label),
+      selected: selected,
+      selectedColor: theme.colorScheme.primary,
+      backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+      labelStyle: TextStyle(
+        color: selected
+            ? (isDark ? Colors.black : Colors.white)
+            : theme.colorScheme.onSurface.withOpacity(0.8),
+        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+        fontSize: 13,
+      ),
+      onSelected: onSelected,
+    );
+  }
+
+  Widget _presetButton(String label, String preset) {
+    return _buildChoiceChip(
+      label: label,
       selected: _activePreset == preset,
       onSelected: (selected) {
         if (selected) {
@@ -398,25 +637,40 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   Widget _summaryCard(String label, double value, Color accentColor, {bool isRevenue = false}) {
+    final theme = Theme.of(context);
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        side: BorderSide(color: accentColor.withOpacity(0.3)),
-        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: theme.brightness == Brightness.dark
+              ? const Color(0xFF334155)
+              : const Color(0xFFE2E8F0),
+          width: 1.0,
+        ),
+        borderRadius: BorderRadius.circular(16),
       ),
+      color: theme.brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurface.withOpacity(0.5),
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
               _currency.format(value),
               style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: isRevenue ? AppTheme.deepBlue : Colors.black87,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.2,
+                color: isRevenue ? theme.colorScheme.primary : theme.colorScheme.onSurface,
               ),
             ),
           ],

@@ -12,6 +12,7 @@ import '../../onboarding/views/company_setup_screen.dart';
 import '../../invoice/views/invoice_designer_screen.dart';
 import '../../invoice/views/template_management_screen.dart';
 import 'shortcuts_settings_screen.dart';
+import '../../../core/utils/navigation.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -26,7 +27,7 @@ class SettingsScreen extends ConsumerWidget {
         throw Exception('Database file not found. Create an invoice first.');
       }
 
-      final result = await FilePicker.platform.saveFile(
+      final result = await FilePicker.saveFile(
         dialogTitle: 'Save Database Backup',
         fileName: 'gst_invoice_backup.db',
       );
@@ -56,7 +57,7 @@ class SettingsScreen extends ConsumerWidget {
 
   Future<void> _restoreDatabase(BuildContext context, WidgetRef ref) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.any,
         dialogTitle: 'Select Backup Database (.db)',
       );
@@ -110,153 +111,197 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
     final isDark = settings.themeMode == ThemeMode.dark;
+    final theme = Theme.of(context);
     
     final companyAsyncVal = ref.watch(companyProfileStateProvider);
 
+    final isWide = MediaQuery.of(context).size.width >= 950;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(
+          'Settings',
+          style: TextStyle(fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
+        ),
+        leading: isWide
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.menu_rounded),
+                onPressed: () => layoutScaffoldKey.currentState?.openDrawer(),
+              ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(24.0),
-        children: [
-          // Theme settings
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  title: const Text('Preferences', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.deepBlue)),
-                  leading: const Icon(Icons.tune, color: AppTheme.primaryGreen),
+      body: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: ListView(
+            padding: const EdgeInsets.all(24.0),
+            children: [
+              // Theme settings
+              Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: Text(
+                        'Preferences',
+                        style: TextStyle(fontWeight: FontWeight.w800, color: theme.colorScheme.primary),
+                      ),
+                      leading: Icon(Icons.tune_rounded, color: theme.colorScheme.primary),
+                    ),
+                    Divider(color: theme.dividerColor.withOpacity(0.08), height: 1),
+                    SwitchListTile(
+                      title: const Text('Dark Theme Mode'),
+                      subtitle: const Text('Enable dark mode for the entire application'),
+                      secondary: Icon(Icons.dark_mode_rounded, color: theme.colorScheme.secondary),
+                      value: isDark,
+                      onChanged: (val) {
+                        ref.read(settingsProvider.notifier).toggleTheme(val);
+                      },
+                    ),
+                  ],
                 ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: const Text('Dark Theme'),
-                  subtitle: const Text('Enable dark mode for the entire application'),
-                  secondary: const Icon(Icons.dark_mode),
-                  value: isDark,
-                  onChanged: (val) {
-                    ref.read(settingsProvider.notifier).toggleTheme(val);
-                  },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
+              ),
+              const SizedBox(height: 16),
 
-          // Business Details profile modifier
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  title: const Text('Business Details', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.deepBlue)),
-                  leading: const Icon(Icons.business, color: AppTheme.primaryGreen),
+              // Business Details profile modifier
+              Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: Text(
+                        'Business Details',
+                        style: TextStyle(fontWeight: FontWeight.w800, color: theme.colorScheme.primary),
+                      ),
+                      leading: Icon(Icons.business_center_rounded, color: theme.colorScheme.primary),
+                    ),
+                    Divider(color: theme.dividerColor.withOpacity(0.08), height: 1),
+                    companyAsyncVal.when(
+                      data: (profile) => ListTile(
+                        title: Text(
+                          profile?.name ?? 'No company configured',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(profile?.gstNumber ?? ''),
+                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const CompanySetupScreen(isEditing: true),
+                            ),
+                          );
+                        },
+                      ),
+                      loading: () => const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                      error: (err, _) => ListTile(title: Text('Error loading profile: $err')),
+                    ),
+                  ],
                 ),
-                const Divider(height: 1),
-                companyAsyncVal.when(
-                  data: (profile) => ListTile(
-                    title: Text(profile?.name ?? 'No company configured'),
-                    subtitle: Text(profile?.gstNumber ?? ''),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              ),
+              const SizedBox(height: 16),
+
+              // Invoice Designer and templates management
+              Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: Text(
+                        'Invoice Customizer',
+                        style: TextStyle(fontWeight: FontWeight.w800, color: theme.colorScheme.primary),
+                      ),
+                      leading: Icon(Icons.dashboard_customize_rounded, color: theme.colorScheme.primary),
+                    ),
+                    Divider(color: theme.dividerColor.withOpacity(0.08), height: 1),
+                    ListTile(
+                      title: const Text('Visual Layout Designer'),
+                      subtitle: const Text('Visually configure invoice templates, spacing, and styles'),
+                      leading: Icon(Icons.palette_outlined, color: theme.colorScheme.secondary),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const InvoiceDesignerScreen()),
+                        );
+                      },
+                    ),
+                    Divider(color: theme.dividerColor.withOpacity(0.08), height: 1, indent: 56),
+                    ListTile(
+                      title: const Text('Manage Templates'),
+                      subtitle: const Text('Import, export, duplicate, and configure layout presets'),
+                      leading: Icon(Icons.tune_rounded, color: theme.colorScheme.secondary),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const TemplateManagementScreen()),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Database maintenance
+              Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: Text(
+                        'Database & Backups',
+                        style: TextStyle(fontWeight: FontWeight.w800, color: theme.colorScheme.primary),
+                      ),
+                      leading: Icon(Icons.storage_rounded, color: theme.colorScheme.primary),
+                    ),
+                    Divider(color: theme.dividerColor.withOpacity(0.08), height: 1),
+                    ListTile(
+                      title: const Text('Backup Database'),
+                      subtitle: const Text('Save a copy of your database locally'),
+                      leading: Icon(Icons.backup_table_rounded, color: theme.colorScheme.secondary),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () => _backupDatabase(context, ref),
+                    ),
+                    Divider(color: theme.dividerColor.withOpacity(0.08), height: 1, indent: 56),
+                    ListTile(
+                      title: const Text('Restore Database'),
+                      subtitle: const Text('Restore settings and invoices from a local backup file'),
+                      leading: Icon(Icons.settings_backup_restore_rounded, color: theme.colorScheme.secondary),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () => _restoreDatabase(context, ref),
+                    ),
+                  ],
+                ),
+              ),
+              
+              if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) ...[
+                const SizedBox(height: 16),
+                Card(
+                  child: ListTile(
+                    leading: Icon(Icons.keyboard_rounded, color: theme.colorScheme.primary),
+                    title: const Text(
+                      'Keyboard Shortcuts Settings',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: const Text('View and customize application keyboard shortcuts'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const CompanySetupScreen(isEditing: true),
+                          builder: (context) => const ShortcutsSettingsScreen(),
                         ),
                       );
                     },
                   ),
-                  loading: () => const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator())),
-                  error: (err, _) => ListTile(title: Text('Error loading profile: $err')),
                 ),
-              ],
-            ),
+              ]
+            ],
           ),
-          const SizedBox(height: 16),
-
-          // Invoice Designer and templates management
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  title: const Text('Invoice Customizer', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.deepBlue)),
-                  leading: const Icon(Icons.dashboard_customize, color: AppTheme.primaryGreen),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  title: const Text('Visual Layout Designer'),
-                  subtitle: const Text('Visually drag-and-drop elements and customize styles'),
-                  leading: const Icon(Icons.palette, color: Colors.purple),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const InvoiceDesignerScreen()),
-                    );
-                  },
-                ),
-                const Divider(height: 1, indent: 56),
-                ListTile(
-                  title: const Text('Manage Templates'),
-                  subtitle: const Text('Import, export, duplicate, and configure invoice layout templates'),
-                  leading: const Icon(Icons.tune, color: Colors.blue),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const TemplateManagementScreen()),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Database maintenance
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  title: const Text('Database & Backups', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.deepBlue)),
-                  leading: const Icon(Icons.storage, color: AppTheme.primaryGreen),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  title: const Text('Backup Database'),
-                  subtitle: const Text('Save a copy of your invoices locally'),
-                  leading: const Icon(Icons.backup),
-                  onTap: () => _backupDatabase(context, ref),
-                ),
-                const Divider(height: 1, indent: 56),
-                ListTile(
-                  title: const Text('Restore Database'),
-                  subtitle: const Text('Restore settings and invoices from a backup file'),
-                  leading: const Icon(Icons.restore),
-                  onTap: () => _restoreDatabase(context, ref),
-                ),
-              ],
-            ),
-          ),
-          
-          if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) ...[
-            const SizedBox(height: 16),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.keyboard, color: AppTheme.primaryGreen),
-                title: const Text('Keyboard Shortcuts Settings'),
-                subtitle: const Text('View and customize application keyboard shortcuts'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ShortcutsSettingsScreen(),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ]
-        ],
+        ),
       ),
     );
   }

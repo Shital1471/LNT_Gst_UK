@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/settings_provider.dart';
@@ -382,12 +384,59 @@ class GstInvoiceApp extends ConsumerWidget {
   }
 }
 
+Widget _buildLogo(CompanyProfile? company, ColorScheme colorScheme) {
+  if (company != null && company.logoPath != null && company.logoPath!.isNotEmpty) {
+    final file = File(company.logoPath!);
+    if (file.existsSync()) {
+      return Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: Image.file(
+            file,
+            width: 40,
+            height: 40,
+            fit: BoxFit.cover,
+          ),
+        ),
+      );
+    }
+  }
+  return Container(
+    width: 40,
+    height: 40,
+    decoration: BoxDecoration(
+      color: colorScheme.primary.withOpacity(0.1),
+      shape: BoxShape.circle,
+    ),
+    child: Icon(
+      Icons.business_center_rounded,
+      color: colorScheme.primary,
+      size: 18,
+    ),
+  );
+}
+
 class AppLayout extends ConsumerWidget {
   const AppLayout({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex = ref.watch(tabIndexProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final companyAsync = ref.watch(companyProfileStateProvider);
+    final company = companyAsync.value;
 
     void onTabChange(int index) {
       ref.read(tabIndexProvider.notifier).state = index;
@@ -401,10 +450,10 @@ class AppLayout extends ConsumerWidget {
       const SettingsScreen(),
     ];
 
-    final isLargeScreen = MediaQuery.of(context).size.width >= 800;
+    final isLargeScreen = MediaQuery.of(context).size.width >= 950;
 
     if (isLargeScreen) {
-      // Desktop Premium Sidebar Layout
+      // Desktop Standard NavigationRail Layout
       return Scaffold(
         body: Row(
           children: [
@@ -412,8 +461,44 @@ class AppLayout extends ConsumerWidget {
               selectedIndex: currentIndex,
               onDestinationSelected: onTabChange,
               labelType: NavigationRailLabelType.all,
-              selectedIconTheme: const IconThemeData(color: AppTheme.primaryGreen),
-              selectedLabelTextStyle: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+              backgroundColor: isDark ? const Color(0xFF151C2C) : Colors.white,
+              selectedIconTheme: IconThemeData(color: theme.colorScheme.primary),
+              selectedLabelTextStyle: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.w500, fontSize: 11),
+              unselectedIconTheme: IconThemeData(color: theme.colorScheme.onSurface.withOpacity(0.5)),
+              unselectedLabelTextStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.5), fontWeight: FontWeight.w300, fontSize: 11),
+              leading: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                child: Column(
+                  children: [
+                    _buildLogo(company, theme.colorScheme),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: 72,
+                      child: Text(
+                        company?.name ?? 'GST Invoice',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w400,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    IconButton(
+                      icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 18),
+                      color: theme.colorScheme.primary,
+                      onPressed: () {
+                        ref.read(settingsProvider.notifier).toggleTheme(!isDark);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                  ],
+                ),
+              ),
               destinations: const [
                 NavigationRailDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: Text('Dashboard')),
                 NavigationRailDestination(icon: Icon(Icons.edit_note_outlined), selectedIcon: Icon(Icons.edit_note), label: Text('Create')),
@@ -430,8 +515,74 @@ class AppLayout extends ConsumerWidget {
         ),
       );
     } else {
-      // Mobile / Tablet Bottom Bar Layout
+      // Mobile / Tablet Bottom Bar Layout + Standard Material Drawer
       return Scaffold(
+        key: layoutScaffoldKey,
+        drawer: Drawer(
+          child: Column(
+            children: [
+              DrawerHeader(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF151C2C) : const Color(0xFFF8FAFC),
+                ),
+                child: Row(
+                  children: [
+                    _buildLogo(company, theme.colorScheme),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            company?.name ?? 'GST Invoice Pro',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'v1.0.0 • Standard',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurface.withOpacity(0.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ListTile(
+                leading: Icon(isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined, size: 20),
+                title: Text(isDark ? 'Dark Theme' : 'Light Theme', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400)),
+                trailing: Switch(
+                  value: isDark,
+                  onChanged: (val) {
+                    ref.read(settingsProvider.notifier).toggleTheme(val);
+                  },
+                ),
+              ),
+              const Divider(),
+              Expanded(
+                child: ListView(
+                  children: [
+                    _buildDrawerTile(context, Icons.dashboard_outlined, 'Dashboard', 0, currentIndex, onTabChange),
+                    _buildDrawerTile(context, Icons.edit_note_outlined, 'Create Invoice', 1, currentIndex, onTabChange),
+                    _buildDrawerTile(context, Icons.history_outlined, 'History', 2, currentIndex, onTabChange),
+                    _buildDrawerTile(context, Icons.analytics_outlined, 'Reports', 3, currentIndex, onTabChange),
+                    _buildDrawerTile(context, Icons.settings_outlined, 'Settings', 4, currentIndex, onTabChange),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         body: IndexedStack(
           index: currentIndex,
           children: screens,
@@ -440,7 +591,7 @@ class AppLayout extends ConsumerWidget {
           currentIndex: currentIndex,
           onTap: onTabChange,
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: AppTheme.primaryGreen,
+          selectedItemColor: Theme.of(context).colorScheme.primary,
           unselectedItemColor: Colors.grey,
           showUnselectedLabels: true,
           items: const [
@@ -453,5 +604,32 @@ class AppLayout extends ConsumerWidget {
         ),
       );
     }
+  }
+
+  Widget _buildDrawerTile(
+    BuildContext context,
+    IconData icon,
+    String label,
+    int index,
+    int currentIndex,
+    ValueChanged<int> onTabChange,
+  ) {
+    final isSelected = currentIndex == index;
+    final theme = Theme.of(context);
+    return ListTile(
+      leading: Icon(icon, color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.6)),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.w500 : FontWeight.w300,
+          color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+        ),
+      ),
+      selected: isSelected,
+      onTap: () {
+        onTabChange(index);
+        Navigator.pop(context); // Close Drawer
+      },
+    );
   }
 }

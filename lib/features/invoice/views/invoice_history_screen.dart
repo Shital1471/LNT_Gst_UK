@@ -10,6 +10,7 @@ import 'package:drift/drift.dart' hide Column;
 import '../providers/invoice_form_provider.dart';
 import '../../company/providers/company_provider.dart';
 import 'invoice_preview_screen.dart';
+import '../../../core/utils/navigation.dart';
 
 final invoicesStreamProvider = StreamProvider<List<Invoice>>((ref) {
   final db = ref.watch(databaseProvider);
@@ -71,7 +72,7 @@ class _InvoiceHistoryScreenState extends ConsumerState<InvoiceHistoryScreen> {
         throw Exception('Source file not found at local storage');
       }
 
-      final destPath = await FilePicker.platform.saveFile(
+      final destPath = await FilePicker.saveFile(
         dialogTitle: 'Save PDF File',
         fileName: '${invoice.invoiceNumber}.pdf',
       );
@@ -166,9 +167,17 @@ class _InvoiceHistoryScreenState extends ConsumerState<InvoiceHistoryScreen> {
   Widget build(BuildContext context) {
     final invoicesStream = ref.watch(invoicesStreamProvider);
 
+    final isWide = MediaQuery.of(context).size.width >= 950;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Invoice History'),
+        leading: isWide
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.menu_rounded),
+                onPressed: () => layoutScaffoldKey.currentState?.openDrawer(),
+              ),
       ),
       body: invoicesStream.when(
         data: (list) {
@@ -201,77 +210,159 @@ class _InvoiceHistoryScreenState extends ConsumerState<InvoiceHistoryScreen> {
 
           return Column(
             children: [
-              // Search & Filter controls panel
+              // Search & Filter controls panel (Responsive Layout)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        decoration: const InputDecoration(
-                          hintText: 'Search invoices by name, number, or GSTIN...',
-                          prefixIcon: Icon(Icons.search),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final theme = Theme.of(context);
+                    final isWide = constraints.maxWidth >= 750;
+
+                    final searchField = TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search invoices by customer, number, or GSTIN...',
+                        prefixIcon: Icon(Icons.search_rounded),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
+                      onChanged: (val) {
+                        setState(() {
+                          _searchQuery = val;
+                        });
+                      },
+                    );
+
+                    final filterTemplateDropdown = Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: theme.brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.brightness == Brightness.dark
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFE2E8F0),
                         ),
-                        onChanged: (val) {
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _filterTemplate,
+                          dropdownColor: theme.cardColor,
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'all', child: Text('All Layouts')),
+                            DropdownMenuItem(value: 'tourism', child: Text('Tourism')),
+                            DropdownMenuItem(value: 'standard', child: Text('Standard')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _filterTemplate = val;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    );
+
+                    final sortDropdown = Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: theme.brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.brightness == Brightness.dark
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _sortField,
+                          dropdownColor: theme.cardColor,
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'date', child: Text('Sort by Date')),
+                            DropdownMenuItem(value: 'total', child: Text('Sort by Total')),
+                            DropdownMenuItem(value: 'number', child: Text('Sort by ID')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _sortField = val;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    );
+
+                    final sortDirectionBtn = Container(
+                      decoration: BoxDecoration(
+                        color: theme.brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.brightness == Brightness.dark
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: IconButton(
+                        icon: Icon(_ascending ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, size: 18),
+                        onPressed: () {
                           setState(() {
-                            _searchQuery = val;
+                            _ascending = !_ascending;
                           });
                         },
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    // Filter Template Dropdown
-                    DropdownButton<String>(
-                      value: _filterTemplate,
-                      underline: const SizedBox(),
-                      items: const [
-                        DropdownMenuItem(value: 'all', child: Text('All Templates')),
-                        DropdownMenuItem(value: 'tourism', child: Text('Tourism')),
-                        DropdownMenuItem(value: 'standard', child: Text('Standard')),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            _filterTemplate = val;
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(width: 16),
-                    // Sort dropdown
-                    DropdownButton<String>(
-                      value: _sortField,
-                      underline: const SizedBox(),
-                      items: const [
-                        DropdownMenuItem(value: 'date', child: Text('Sort by Date')),
-                        DropdownMenuItem(value: 'total', child: Text('Sort by Total')),
-                        DropdownMenuItem(value: 'number', child: Text('Sort by Number')),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            _sortField = val;
-                          });
-                        }
-                      },
-                    ),
-                    IconButton(
-                      icon: Icon(_ascending ? Icons.arrow_upward : Icons.arrow_downward, size: 18),
-                      onPressed: () {
-                        setState(() {
-                          _ascending = !_ascending;
-                        });
-                      },
-                    ),
-                  ],
+                    );
+
+                    if (isWide) {
+                      return Row(
+                        children: [
+                          Expanded(flex: 4, child: searchField),
+                          const SizedBox(width: 12),
+                          filterTemplateDropdown,
+                          const SizedBox(width: 12),
+                          sortDropdown,
+                          const SizedBox(width: 8),
+                          sortDirectionBtn,
+                        ],
+                      );
+                    } else {
+                      return Column(
+                        children: [
+                          searchField,
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(child: filterTemplateDropdown),
+                              const SizedBox(width: 8),
+                              Expanded(child: sortDropdown),
+                              const SizedBox(width: 8),
+                              sortDirectionBtn,
+                            ],
+                          )
+                        ],
+                      );
+                    }
+                  },
                 ),
               ),
 
               if (filteredList.isEmpty)
                 const Expanded(
                   child: Center(
-                    child: Text('No matching invoices found in history.'),
+                    child: Text(
+                      'No matching invoices found in history.',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
                   ),
                 )
               else
@@ -283,121 +374,226 @@ class _InvoiceHistoryScreenState extends ConsumerState<InvoiceHistoryScreen> {
                     itemBuilder: (context, index) {
                       final invoice = filteredList[index];
                       final balance = invoice.grandTotal - invoice.advancePaid;
+                      final theme = Theme.of(context);
+                      final isDark = theme.brightness == Brightness.dark;
 
-                      return Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Row(
+                      // Card layout dependent on width
+                      return LayoutBuilder(
+                        builder: (context, cardConstraints) {
+                          final isCardWide = cardConstraints.maxWidth >= 650;
+
+                          // Shared sub-components
+                          final iconLayout = Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: invoice.templateType == 'tourism'
+                                  ? theme.colorScheme.primary.withOpacity(0.1)
+                                  : theme.colorScheme.secondary.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              invoice.templateType == 'tourism'
+                                  ? Icons.beach_access_rounded
+                                  : Icons.shopping_bag_rounded,
+                              color: invoice.templateType == 'tourism'
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.secondary,
+                              size: 20,
+                            ),
+                          );
+
+                          final invoiceInfo = Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Left: Icon representing template type
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: invoice.templateType == 'tourism'
-                                      ? AppTheme.primaryGreen.withOpacity(0.1)
-                                      : AppTheme.deepBlue.withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  invoice.templateType == 'tourism' ? Icons.beach_access : Icons.shopping_bag,
-                                  color: invoice.templateType == 'tourism' ? AppTheme.primaryGreen : AppTheme.deepBlue,
+                              Row(
+                                children: [
+                                  Text(
+                                    invoice.invoiceNumber,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14.5,
+                                      color: theme.colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF131B2E) : const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      _df.format(invoice.invoiceDate),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: theme.colorScheme.onSurface.withOpacity(0.5),
+                                      ),
+                                    ),
+                                  )
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                invoice.customerName,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: theme.colorScheme.onSurface.withOpacity(0.85),
                                 ),
                               ),
-                              const SizedBox(width: 16),
-                              
-                              // Middle Info Column
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                              if (invoice.tourTrip != null) ...[
+                                const SizedBox(height: 3),
+                                Row(
                                   children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          invoice.invoiceNumber,
-                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.deepBlue),
+                                    Icon(Icons.route_rounded,
+                                        size: 12, color: theme.colorScheme.onSurface.withOpacity(0.4)),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        invoice.tourTrip!,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: theme.colorScheme.onSurface.withOpacity(0.5),
                                         ),
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.shade200,
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: Text(
-                                            _df.format(invoice.invoiceDate),
-                                            style: const TextStyle(fontSize: 10, color: Colors.grey),
-                                          ),
-                                        )
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      invoice.customerName,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                    ),
-                                    if (invoice.tourTrip != null) ...[
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Trip: ${invoice.tourTrip}',
-                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
                                       ),
-                                    ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          );
+
+                          final pricingInfo = Column(
+                            crossAxisAlignment:
+                                isCardWide ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                _currency.format(invoice.grandTotal),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 15,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              if (balance > 0)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.accentOrange.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    'Due: ${_currency.format(balance)}',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: AppTheme.accentOrange,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                )
+                              else
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'Fully Paid',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                )
+                            ],
+                          );
+
+                          final actions = Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.visibility_outlined, size: 20),
+                                tooltip: 'View Invoice',
+                                color: Colors.blue.shade400,
+                                onPressed: () => _viewInvoice(invoice),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.file_download_outlined, size: 20),
+                                tooltip: 'Save PDF Copy',
+                                color: theme.colorScheme.primary,
+                                onPressed: () => _downloadPdf(invoice),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.content_copy_rounded, size: 18),
+                                tooltip: 'Duplicate as Draft',
+                                color: theme.colorScheme.secondary,
+                                onPressed: () => _duplicateInvoice(invoice),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                                tooltip: 'Delete Permanently',
+                                color: theme.colorScheme.error,
+                                onPressed: () => _deleteInvoice(invoice),
+                              ),
+                            ],
+                          );
+
+                          if (isCardWide) {
+                            return Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(18.0),
+                                child: Row(
+                                  children: [
+                                    iconLayout,
+                                    const SizedBox(width: 16),
+                                    Expanded(child: invoiceInfo),
+                                    const SizedBox(width: 16),
+                                    pricingInfo,
+                                    const SizedBox(width: 20),
+                                    actions,
                                   ],
                                 ),
                               ),
-                              
-                              // Financials Column
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    _currency.format(invoice.grandTotal),
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.primaryGreen),
-                                  ),
-                                  if (balance > 0)
-                                    Text(
-                                      'Due: ${_currency.format(balance)}',
-                                      style: const TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.bold),
-                                    )
-                                  else
-                                    const Text(
-                                      'Fully Paid',
-                                      style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold),
-                                    )
-                                ],
+                            );
+                          } else {
+                            // Stacked for compact screens
+                            return Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        iconLayout,
+                                        const SizedBox(width: 12),
+                                        Expanded(child: invoiceInfo),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    const Divider(height: 1),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        pricingInfo,
+                                        actions,
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(width: 24),
-                              
-                              // Actions menu
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.visibility, color: Colors.blue),
-                                    tooltip: 'View Preview',
-                                    onPressed: () => _viewInvoice(invoice),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.download, color: AppTheme.primaryGreen),
-                                    tooltip: 'Download PDF',
-                                    onPressed: () => _downloadPdf(invoice),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.copy, color: AppTheme.deepBlue),
-                                    tooltip: 'Duplicate Invoice',
-                                    onPressed: () => _duplicateInvoice(invoice),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete, color: Colors.red),
-                                    tooltip: 'Delete',
-                                    onPressed: () => _deleteInvoice(invoice),
-                                  ),
-                                ],
-                              )
-                            ],
-                          ),
-                        ),
+                            );
+                          }
+                        },
                       );
                     },
                   ),

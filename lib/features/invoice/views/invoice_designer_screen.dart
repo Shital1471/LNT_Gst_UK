@@ -109,7 +109,7 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
                   TabBar(
                     controller: _tabController,
                     isScrollable: true,
-                    labelColor: AppTheme.deepBlue,
+                    labelColor: Theme.of(context).colorScheme.onSurface,
                     unselectedLabelColor: Colors.grey,
                     indicatorColor: AppTheme.primaryGreen,
                     tabs: const [
@@ -153,7 +153,7 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
 
     if (isTourism) {
       final companyAsync = ref.watch(companyProfileStateProvider);
-      final company = companyAsync.valueOrNull ?? const CompanyProfile(
+      final company = companyAsync.value ?? const CompanyProfile(
         id: 0,
         name: '',
         address: '',
@@ -290,10 +290,10 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
               children: [
                 Text(
                   sec.title.toUpperCase(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 7.5,
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.deepBlue,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const Spacer(),
@@ -483,9 +483,9 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Sections & Fields',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface),
               ),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -495,7 +495,7 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
                     icon: const Icon(Icons.add_box, size: 16),
                     label: const Text('Add Section', style: TextStyle(fontSize: 12)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.deepBlue,
+                      backgroundColor: Theme.of(context).colorScheme.onSurface,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
@@ -539,7 +539,7 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ExpansionTile(
                     initiallyExpanded: isSelected,
-                    leading: const Icon(Icons.folder_open, color: AppTheme.deepBlue, size: 20),
+                    leading: Icon(Icons.folder_open, color: Theme.of(context).colorScheme.onSurface, size: 20),
                     title: Text(
                       sec.title,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
@@ -690,9 +690,9 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        const Text(
+        Text(
           'Header & Logo Layout',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface),
         ),
         const SizedBox(height: 12),
 
@@ -844,21 +844,26 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
 
   Widget _buildSpacingTab(InvoiceTemplateSchema template) {
     final isTourism = template.id == 'tourism';
+    final theme = Theme.of(context);
 
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        const Text(
+        Text(
           'Page Spacing & Layout Presets',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: theme.colorScheme.onSurface,
+          ),
         ),
         const SizedBox(height: 12),
 
         Card(
-          color: AppTheme.primaryGreen.withOpacity(0.04),
+          color: theme.colorScheme.primary.withOpacity(0.04),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
-            side: const BorderSide(color: AppTheme.primaryGreen, width: 0.5),
+            side: BorderSide(color: theme.colorScheme.primary, width: 0.5),
           ),
           child: Padding(
             padding: const EdgeInsets.all(12.0),
@@ -877,8 +882,14 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
                     Expanded(
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: template.layoutPreset == 'compact' ? AppTheme.primaryGreen : Colors.grey.shade100,
-                          foregroundColor: template.layoutPreset == 'compact' ? Colors.white : Colors.black,
+                          backgroundColor: template.layoutPreset == 'compact'
+                              ? theme.colorScheme.primary
+                              : (theme.brightness == Brightness.dark
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFFF1F5F9)),
+                          foregroundColor: template.layoutPreset == 'compact'
+                              ? theme.colorScheme.onPrimary
+                              : theme.colorScheme.onSurface.withOpacity(0.8),
                           elevation: 1,
                         ),
                         onPressed: () => _applyPreset(template, 'compact'),
@@ -889,8 +900,14 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
                     Expanded(
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: template.layoutPreset == 'standard' ? AppTheme.primaryGreen : Colors.grey.shade100,
-                          foregroundColor: template.layoutPreset == 'standard' ? Colors.white : Colors.black,
+                          backgroundColor: template.layoutPreset == 'standard'
+                              ? theme.colorScheme.primary
+                              : (theme.brightness == Brightness.dark
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFFF1F5F9)),
+                          foregroundColor: template.layoutPreset == 'standard'
+                              ? theme.colorScheme.onPrimary
+                              : theme.colorScheme.onSurface.withOpacity(0.8),
                           elevation: 1,
                         ),
                         onPressed: () => _applyPreset(template, 'standard'),
@@ -901,8 +918,14 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
                     Expanded(
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: template.layoutPreset == 'large_print' ? AppTheme.primaryGreen : Colors.grey.shade100,
-                          foregroundColor: template.layoutPreset == 'large_print' ? Colors.white : Colors.black,
+                          backgroundColor: template.layoutPreset == 'large_print'
+                              ? theme.colorScheme.primary
+                              : (theme.brightness == Brightness.dark
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFFF1F5F9)),
+                          foregroundColor: template.layoutPreset == 'large_print'
+                              ? theme.colorScheme.onPrimary
+                              : theme.colorScheme.onSurface.withOpacity(0.8),
                           elevation: 1,
                         ),
                         onPressed: () => _applyPreset(template, 'large_print'),
@@ -1070,9 +1093,9 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Table Column Designer',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -1094,7 +1117,7 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
                     side: BorderSide(color: Colors.grey.shade200),
                   ),
                   child: ExpansionTile(
-                    leading: const Icon(Icons.view_column, color: AppTheme.deepBlue),
+                    leading: Icon(Icons.view_column, color: Theme.of(context).colorScheme.onSurface),
                     title: Text(
                       col.label,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
@@ -1255,9 +1278,9 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Footer Layout Designer',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -1278,7 +1301,7 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
                     side: BorderSide(color: Colors.grey.shade200),
                   ),
                   child: ExpansionTile(
-                    leading: const Icon(Icons.subtitles, color: AppTheme.deepBlue),
+                    leading: Icon(Icons.subtitles, color: Theme.of(context).colorScheme.onSurface),
                     title: Text(
                       ft.title,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
@@ -1422,9 +1445,9 @@ class _InvoiceDesignerScreenState extends ConsumerState<InvoiceDesignerScreen> w
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        const Text(
+        Text(
           'Typography & Styling',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface),
         ),
         const SizedBox(height: 8),
         const Text(

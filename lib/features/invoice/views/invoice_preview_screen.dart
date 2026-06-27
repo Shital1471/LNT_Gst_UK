@@ -15,6 +15,8 @@ import '../../../core/providers/database_provider.dart';
 import '../services/pdf_generator.dart';
 import '../services/docx_generator.dart';
 import '../models/invoice_template_schema.dart';
+import '../providers/invoice_form_provider.dart';
+import '../../../core/providers/shortcuts_provider.dart';
 import 'tourism_preview_widget.dart';
 
 class InvoicePreviewScreen extends ConsumerStatefulWidget {
@@ -39,6 +41,7 @@ class _InvoicePreviewScreenState extends ConsumerState<InvoicePreviewScreen> {
   Uint8List? _pdfBytes;
   Uint8List? _docxBytes;
   bool _isSaving = false;
+  bool _savedToDb = false;
 
   @override
   void initState() {
@@ -107,10 +110,68 @@ class _InvoicePreviewScreenState extends ConsumerState<InvoicePreviewScreen> {
     }
   }
 
+  Future<void> _saveTemporaryInvoiceToDb() async {
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final invoiceId = await ref.read(invoiceFormProvider.notifier).saveInvoice();
+
+      final docDir = await getApplicationDocumentsDirectory();
+      final invoicesFolder = Directory(p.join(docDir.path, 'invoices'));
+      if (!await invoicesFolder.exists()) {
+        await invoicesFolder.create(recursive: true);
+      }
+
+      final pdfPath = p.join(invoicesFolder.path, '${widget.invoice.invoiceNumber}.pdf');
+      final docxPath = p.join(invoicesFolder.path, '${widget.invoice.invoiceNumber}.docx');
+
+      if (_pdfBytes != null) {
+        await File(pdfPath).writeAsBytes(_pdfBytes!);
+      }
+      if (_docxBytes != null) {
+        await File(docxPath).writeAsBytes(_docxBytes!);
+      }
+
+      final db = ref.read(databaseProvider);
+      await (db.update(db.invoices)..where((t) => t.id.equals(invoiceId))).write(
+        InvoicesCompanion(
+          pdfPath: Value(pdfPath),
+          docxPath: Value(docxPath),
+        ),
+      );
+
+      setState(() {
+        _savedToDb = true;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invoice saved successfully to database!'),
+            backgroundColor: AppTheme.primaryGreen,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving invoice: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      setState(() {
+        _isSaving = false;
+      });
+    }
+  }
+
+
   Future<void> _downloadPdf() async {
     if (_pdfBytes == null) return;
     try {
-      final path = await FilePicker.platform.saveFile(
+      final path = await FilePicker.saveFile(
         dialogTitle: 'Save PDF Document',
         fileName: '${widget.invoice.invoiceNumber}.pdf',
       );
@@ -134,7 +195,7 @@ class _InvoicePreviewScreenState extends ConsumerState<InvoicePreviewScreen> {
   Future<void> _downloadDocx() async {
     if (_docxBytes == null) return;
     try {
-      final path = await FilePicker.platform.saveFile(
+      final path = await FilePicker.saveFile(
         dialogTitle: 'Save Word Document',
         fileName: '${widget.invoice.invoiceNumber}.docx',
       );
@@ -219,143 +280,197 @@ class _InvoicePreviewScreenState extends ConsumerState<InvoicePreviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Invoice ${widget.invoice.invoiceNumber} Preview'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.share),
-            tooltip: 'Share Invoice',
-            onPressed: _shareInvoice,
-          ),
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            tooltip: 'Export PDF',
-            onPressed: _downloadPdf,
-          ),
-          IconButton(
-            icon: const Icon(Icons.description),
-            tooltip: 'Export Word (DOCX)',
-            onPressed: _downloadDocx,
-          ),
-        ],
-      ),
-      body: _isSaving || _pdfBytes == null
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Compiling PDF and DOCX Layouts... Please wait'),
-                ],
+    final shortcuts = ref.watch(shortcutsProvider);
+    final Map<ShortcutActivator, VoidCallback> bindings = {};
+
+    final shareShortcut = shortcuts['shareInvoice'];
+    if (shareShortcut != null) {
+      bindings[SingleActivator(shareShortcut.key, control: shareShortcut.control, shift: shareShortcut.shift, alt: shareShortcut.alt)] = _shareInvoice;
+    }
+    final pdfShortcut = shortcuts['downloadPdf'];
+    if (pdfShortcut != null) {
+      bindings[SingleActivator(pdfShortcut.key, control: pdfShortcut.control, shift: pdfShortcut.shift, alt: pdfShortcut.alt)] = _downloadPdf;
+    }
+    final docxShortcut = shortcuts['downloadDocx'];
+    if (docxShortcut != null) {
+      bindings[SingleActivator(docxShortcut.key, control: docxShortcut.control, shift: docxShortcut.shift, alt: docxShortcut.alt)] = _downloadDocx;
+    }
+    final saveShortcut = shortcuts['saveToDatabase'];
+    if (saveShortcut != null) {
+      bindings[SingleActivator(saveShortcut.key, control: saveShortcut.control, shift: saveShortcut.shift, alt: saveShortcut.alt)] = () {
+        if (widget.isTemporary && !_savedToDb) {
+          _saveTemporaryInvoiceToDb();
+        }
+      };
+    }
+    final doneShortcut = shortcuts['doneAndReturn'];
+    if (doneShortcut != null) {
+      bindings[SingleActivator(doneShortcut.key, control: doneShortcut.control, shift: doneShortcut.shift, alt: doneShortcut.alt)] = () {
+        Navigator.pop(context, _savedToDb);
+      };
+    }
+
+    return Focus(
+      autofocus: true,
+      child: CallbackShortcuts(
+        bindings: bindings,
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text('Invoice ${widget.invoice.invoiceNumber} Preview'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.share),
+                tooltip: shareShortcut != null ? 'Share Invoice (${shareShortcut.displayString})' : 'Share Invoice',
+                onPressed: _shareInvoice,
               ),
-            )
-          : Row(
-              children: [
-                // Visual Viewer (Custom for tourism, PDF for others)
-                Expanded(
-                  flex: 3,
-                  child: widget.invoice.templateType == 'tourism'
-                      ? LayoutBuilder(
-                          builder: (context, constraints) {
-                            final parsedFieldValues = _getFieldValues();
-                            final template = _getTemplate();
-                            final double availableWidth = constraints.maxWidth;
-                            final double scale = availableWidth < template.pageWidth
-                                ? (availableWidth - 32) / template.pageWidth
-                                : 1.0;
-                            return Container(
-                              color: Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.grey.shade900
-                                  : Colors.grey.shade100,
-                              child: SingleChildScrollView(
-                                padding: const EdgeInsets.all(16),
-                                child: Center(
-                                  child: TourismInvoicePreviewWidget(
-                                    invoice: widget.invoice,
-                                    items: widget.items,
-                                    company: widget.company,
-                                    fieldValues: parsedFieldValues,
-                                    template: template,
-                                    scale: scale,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        )
-                      : PdfPreview(
-                          build: (format) => _pdfBytes!,
-                          useActions: false, // We use our own custom Material 3 Action panel on the right
-                          allowPrinting: true,
-                          allowSharing: true,
-                        ),
-                ),
-                
-                // Action Control Center
-                Container(
-                  width: 260,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    border: Border(left: BorderSide(color: Colors.grey.shade300)),
-                  ),
-                  padding: const EdgeInsets.all(20),
+              IconButton(
+                icon: const Icon(Icons.picture_as_pdf),
+                tooltip: pdfShortcut != null ? 'Export PDF (${pdfShortcut.displayString})' : 'Export PDF',
+                onPressed: _downloadPdf,
+              ),
+              IconButton(
+                icon: const Icon(Icons.description),
+                tooltip: docxShortcut != null ? 'Export Word (DOCX) (${docxShortcut.displayString})' : 'Export Word (DOCX)',
+                onPressed: _downloadDocx,
+              ),
+            ],
+          ),
+          body: _isSaving || _pdfBytes == null
+              ? const Center(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
-                        'Document Actions',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () => Printing.layoutPdf(onLayout: (_) => _pdfBytes!),
-                        icon: const Icon(Icons.print),
-                        label: const Text('Print PDF'),
-                      ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: _downloadPdf,
-                        icon: const Icon(Icons.download),
-                        label: const Text('Download PDF'),
-                      ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: _downloadDocx,
-                        icon: const Icon(Icons.edit_document, color: AppTheme.primaryGreen),
-                        label: const Text('Download DOCX'),
-                      ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: _shareInvoice,
-                        icon: const Icon(Icons.send),
-                        label: const Text('Share / Email'),
-                      ),
-                      const SizedBox(height: 24),
-                      const Divider(),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Storage Details',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 8),
-                      _metaRow('Total Amount', 'Rs. ${widget.invoice.grandTotal.toStringAsFixed(2)}'),
-                      _metaRow('Advance Paid', 'Rs. ${widget.invoice.advancePaid.toStringAsFixed(2)}'),
-                      _metaRow('Balance Due', 'Rs. ${(widget.invoice.grandTotal - widget.invoice.advancePaid).toStringAsFixed(2)}'),
-                      const Spacer(),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.deepBlue),
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                        child: const Text('Done & Return'),
-                      ),
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Compiling PDF and DOCX Layouts... Please wait'),
                     ],
                   ),
+                )
+              : Row(
+                  children: [
+                    // Visual Viewer (Custom for tourism, PDF for others)
+                    Expanded(
+                      flex: 3,
+                      child: widget.invoice.templateType == 'tourism'
+                          ? LayoutBuilder(
+                              builder: (context, constraints) {
+                                final parsedFieldValues = _getFieldValues();
+                                final template = _getTemplate();
+                                final double availableWidth = constraints.maxWidth;
+                                final double scale = availableWidth < template.pageWidth
+                                    ? (availableWidth - 32) / template.pageWidth
+                                    : 1.0;
+                                return Container(
+                                  color: Theme.of(context).brightness == Brightness.dark
+                                      ? Colors.grey.shade900
+                                      : Colors.grey.shade100,
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Center(
+                                      child: TourismInvoicePreviewWidget(
+                                        invoice: widget.invoice,
+                                        items: widget.items,
+                                        company: widget.company,
+                                        fieldValues: parsedFieldValues,
+                                        template: template,
+                                        scale: scale,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            )
+                          : PdfPreview(
+                              build: (format) => _pdfBytes!,
+                              useActions: false, // We use our own custom Material 3 Action panel on the right
+                              allowPrinting: true,
+                              allowSharing: true,
+                            ),
+                    ),
+                    
+                    // Action Control Center
+                    Container(
+                      width: 260,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
+                        border: Border(left: BorderSide(color: Colors.grey.shade300)),
+                      ),
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Document Actions',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface),
+                          ),
+                          const SizedBox(height: 16),
+                          if (widget.isTemporary && !_savedToDb) ...[
+                            Tooltip(
+                              message: saveShortcut != null ? 'Save to Database (${saveShortcut.displayString})' : 'Save to Database',
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primaryGreen,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: _saveTemporaryInvoiceToDb,
+                                icon: const Icon(Icons.cloud_upload),
+                                label: const Text('Save to Database'),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          ElevatedButton.icon(
+                            onPressed: () => Printing.layoutPdf(onLayout: (_) => _pdfBytes!),
+                            icon: const Icon(Icons.print),
+                            label: const Text('Print PDF'),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: _downloadPdf,
+                            icon: const Icon(Icons.download),
+                            label: const Text('Download PDF'),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: _downloadDocx,
+                            icon: const Icon(Icons.edit_document, color: AppTheme.primaryGreen),
+                            label: const Text('Download DOCX'),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: _shareInvoice,
+                            icon: const Icon(Icons.send),
+                            label: const Text('Share / Email'),
+                          ),
+                          const SizedBox(height: 24),
+                          const Divider(),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Storage Details',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey),
+                          ),
+                          const SizedBox(height: 8),
+                          _metaRow('Total Amount', 'Rs. ${widget.invoice.grandTotal.toStringAsFixed(2)}'),
+                          _metaRow('Advance Paid', 'Rs. ${widget.invoice.advancePaid.toStringAsFixed(2)}'),
+                          _metaRow('Balance Due', 'Rs. ${(widget.invoice.grandTotal - widget.invoice.advancePaid).toStringAsFixed(2)}'),
+                          const Spacer(),
+                          Tooltip(
+                            message: doneShortcut != null ? 'Done & Return (${doneShortcut.displayString})' : 'Done & Return',
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
+                              onPressed: () {
+                                Navigator.pop(context, _savedToDb);
+                              },
+                              child: const Text('Done & Return'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+        ),
+      ),
     );
   }
 

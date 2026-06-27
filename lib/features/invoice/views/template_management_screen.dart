@@ -136,7 +136,7 @@ class _TemplateManagementScreenState extends ConsumerState<TemplateManagementScr
   Future<void> _exportTemplate(InvoiceTemplateSchema template) async {
     try {
       final jsonStr = jsonEncode(template.toJson());
-      final path = await FilePicker.platform.saveFile(
+      final path = await FilePicker.saveFile(
         dialogTitle: 'Export Template Layout (.json)',
         fileName: '${template.id}_template.json',
       );
@@ -172,7 +172,7 @@ class _TemplateManagementScreenState extends ConsumerState<TemplateManagementScr
       final zipBytes = ZipEncoder().encode(archive);
 
       if (zipBytes != null) {
-        final path = await FilePicker.platform.saveFile(
+        final path = await FilePicker.saveFile(
           dialogTitle: 'Save Templates Backup ZIP',
           fileName: 'invoice_templates_backup.zip',
         );
@@ -197,7 +197,7 @@ class _TemplateManagementScreenState extends ConsumerState<TemplateManagementScr
 
   Future<void> _restoreTemplatesZip() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['zip'],
         dialogTitle: 'Select Templates Backup ZIP',
@@ -260,7 +260,7 @@ class _TemplateManagementScreenState extends ConsumerState<TemplateManagementScr
 
   Future<void> _importTemplate() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json', 'png', 'jpg', 'jpeg', 'pdf'],
         dialogTitle: 'Import Template (JSON, Images or PDF)',
@@ -579,7 +579,7 @@ class _TemplateManagementScreenState extends ConsumerState<TemplateManagementScr
                             Icon(
                               isActive ? Icons.check_circle : Icons.dashboard,
                               size: 40,
-                              color: isActive ? AppTheme.primaryGreen : AppTheme.deepBlue,
+                              color: isActive ? AppTheme.primaryGreen : Theme.of(context).colorScheme.onSurface,
                             ),
                             const SizedBox(width: 16),
                             Expanded(

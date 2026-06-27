@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_provider.dart';
 
@@ -111,6 +112,13 @@ class ShortcutsNotifier extends StateNotifier<Map<String, AppShortcut>> {
       'themeToggle': AppShortcut(id: 'themeToggle', name: 'Toggle Theme', description: 'Toggle between dark and light modes', key: LogicalKeyboardKey.keyT, keyLabel: 'T', control: true, shift: true),
       'focusTemplateSelector': AppShortcut(id: 'focusTemplateSelector', name: 'Change Template', description: 'Open quick template selector overlay', key: LogicalKeyboardKey.keyL, keyLabel: 'L', control: true),
       'goBack': AppShortcut(id: 'goBack', name: 'Go Back / Exit', description: 'Dismiss current dialog or return to previous screen', key: LogicalKeyboardKey.escape, keyLabel: 'Escape'),
+      'shareInvoice': AppShortcut(id: 'shareInvoice', name: 'Share / Email', description: 'Share or email the current invoice PDF', key: LogicalKeyboardKey.keyE, keyLabel: 'E', control: true),
+      'downloadPdf': AppShortcut(id: 'downloadPdf', name: 'Download PDF', description: 'Save the invoice PDF to local device', key: LogicalKeyboardKey.keyP, keyLabel: 'P', control: true, shift: true),
+      'downloadDocx': AppShortcut(id: 'downloadDocx', name: 'Download Word', description: 'Save the invoice DOCX to local device', key: LogicalKeyboardKey.keyW, keyLabel: 'W', control: true, shift: true),
+      'saveToDatabase': AppShortcut(id: 'saveToDatabase', name: 'Save Preview to DB', description: 'Commit the temporary preview to database history', key: LogicalKeyboardKey.keyS, keyLabel: 'S', control: true, shift: true),
+      'doneAndReturn': AppShortcut(id: 'doneAndReturn', name: 'Done & Return', description: 'Close preview and return to form screen', key: LogicalKeyboardKey.enter, keyLabel: 'Enter', control: true),
+      'exportExcel': AppShortcut(id: 'exportExcel', name: 'Export Excel/CSV', description: 'Export the filtered report data as Excel/CSV', key: LogicalKeyboardKey.keyX, keyLabel: 'X', control: true, shift: true),
+      'exportPdfReport': AppShortcut(id: 'exportPdfReport', name: 'Export PDF Report', description: 'Export the filtered report data as a PDF document', key: LogicalKeyboardKey.keyR, keyLabel: 'R', control: true, shift: true),
     };
   }
 

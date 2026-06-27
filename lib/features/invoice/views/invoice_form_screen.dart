@@ -16,6 +16,7 @@ import 'invoice_preview_screen.dart';
 import 'invoice_designer_screen.dart';
 import 'template_management_screen.dart';
 import '../../../core/utils/num_to_words.dart';
+import '../../../core/utils/navigation.dart';
 
 class InvoiceFormScreen extends ConsumerStatefulWidget {
   const InvoiceFormScreen({super.key});
@@ -115,7 +116,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
 
   Future<void> _pickSignatureImage() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.image,
         allowMultiple: false,
       );
@@ -218,20 +219,20 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: AppTheme.deepBlue.withOpacity(0.1),
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.post_add_rounded, color: AppTheme.deepBlue, size: 26),
+                          child: Icon(Icons.post_add_rounded, color: Theme.of(context).colorScheme.onSurface, size: 26),
                         ),
                         const SizedBox(width: 14),
-                        const Column(
+                        Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'Add Line Item',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.deepBlue),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).colorScheme.onSurface),
                             ),
-                            Text(
+                            const Text(
                               'Define the service description and pricing details',
                               style: TextStyle(fontSize: 12, color: Colors.grey),
                             ),
@@ -242,6 +243,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     const SizedBox(height: 24),
                     TextField(
                       controller: descCtrl,
+                      textInputAction: TextInputAction.next,
                       decoration: InputDecoration(
                         labelText: 'Description / Service Name',
                         hintText: 'e.g. Tour Guide Services or Vehicle Hire',
@@ -261,9 +263,9 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'TOUR DETAILS',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppTheme.deepBlue, letterSpacing: 0.5),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Theme.of(context).colorScheme.onSurface, letterSpacing: 0.5),
                             ),
                             const SizedBox(height: 12),
                             Row(
@@ -271,6 +273,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                                 Expanded(
                                   child: TextField(
                                     controller: vehiclesCtrl,
+                                    textInputAction: TextInputAction.next,
                                     keyboardType: TextInputType.number,
                                     decoration: InputDecoration(
                                       labelText: 'No. of Vehicles',
@@ -311,6 +314,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                             const SizedBox(height: 12),
                             TextField(
                               controller: fromToCtrl,
+                              textInputAction: TextInputAction.next,
                               decoration: InputDecoration(
                                 labelText: 'From - To (Route)',
                                 hintText: 'e.g. Haridwar - Rishikesh - Dehradun',
@@ -328,6 +332,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                         Expanded(
                           child: TextField(
                             controller: qtyCtrl,
+                            textInputAction: TextInputAction.next,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             decoration: InputDecoration(
                               labelText: isTourism ? 'Qty / Days' : 'Qty',
@@ -341,6 +346,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                         Expanded(
                           child: TextField(
                             controller: rateCtrl,
+                            textInputAction: TextInputAction.next,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             decoration: InputDecoration(
                               labelText: 'Rate (Rs.)',
@@ -355,6 +361,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: amountCtrl,
+                      textInputAction: TextInputAction.next,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: InputDecoration(
                         labelText: 'Total Price (Rs.)',
@@ -368,11 +375,11 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     if (customCols.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       const Divider(),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Align(
                           alignment: Alignment.centerLeft,
-                          child: Text('Custom Columns', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.deepBlue)),
+                          child: Text('Custom Columns', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
                         ),
                       ),
                       ...customCols.map((col) {
@@ -380,6 +387,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                           padding: const EdgeInsets.only(bottom: 12),
                           child: TextField(
                             controller: customCtrls[col.id],
+                            textInputAction: TextInputAction.next,
                             decoration: InputDecoration(
                               labelText: col.label,
                               prefixIcon: const Icon(Icons.add_box_outlined, size: 16),
@@ -522,20 +530,20 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: AppTheme.deepBlue.withOpacity(0.1),
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.edit_note_rounded, color: AppTheme.deepBlue, size: 26),
+                           child: Icon(Icons.edit_note_rounded, color: Theme.of(context).colorScheme.onSurface, size: 26),
                         ),
                         const SizedBox(width: 14),
-                        const Column(
+                        Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'Edit Line Item',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.deepBlue),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).colorScheme.onSurface),
                             ),
-                            Text(
+                            const Text(
                               'Update the service description and pricing details',
                               style: TextStyle(fontSize: 12, color: Colors.grey),
                             ),
@@ -546,6 +554,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     const SizedBox(height: 24),
                     TextField(
                       controller: descCtrl,
+                      textInputAction: TextInputAction.next,
                       decoration: InputDecoration(
                         labelText: 'Description / Service Name',
                         hintText: 'e.g. Tour Guide Services or Vehicle Hire',
@@ -565,9 +574,9 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'TOUR DETAILS',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppTheme.deepBlue, letterSpacing: 0.5),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Theme.of(context).colorScheme.onSurface, letterSpacing: 0.5),
                             ),
                             const SizedBox(height: 12),
                             Row(
@@ -575,6 +584,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                                 Expanded(
                                   child: TextField(
                                     controller: vehiclesCtrl,
+                                    textInputAction: TextInputAction.next,
                                     keyboardType: TextInputType.number,
                                     decoration: InputDecoration(
                                       labelText: 'No. of Vehicles',
@@ -615,6 +625,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                             const SizedBox(height: 12),
                             TextField(
                               controller: fromToCtrl,
+                              textInputAction: TextInputAction.next,
                               decoration: InputDecoration(
                                 labelText: 'From - To (Route)',
                                 hintText: 'e.g. Haridwar - Rishikesh - Dehradun',
@@ -632,6 +643,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                         Expanded(
                           child: TextField(
                             controller: qtyCtrl,
+                            textInputAction: TextInputAction.next,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             decoration: InputDecoration(
                               labelText: isTourism ? 'Qty / Days' : 'Qty',
@@ -645,6 +657,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                         Expanded(
                           child: TextField(
                             controller: rateCtrl,
+                            textInputAction: TextInputAction.next,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             decoration: InputDecoration(
                               labelText: 'Rate (Rs.)',
@@ -659,6 +672,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: amountCtrl,
+                      textInputAction: TextInputAction.next,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: InputDecoration(
                         labelText: 'Total Price (Rs.)',
@@ -672,11 +686,11 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     if (customCols.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       const Divider(),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Align(
                           alignment: Alignment.centerLeft,
-                          child: Text('Custom Columns', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.deepBlue)),
+                          child: Text('Custom Columns', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
                         ),
                       ),
                       ...customCols.map((col) {
@@ -684,6 +698,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                           padding: const EdgeInsets.only(bottom: 12),
                           child: TextField(
                             controller: customCtrls[col.id],
+                            textInputAction: TextInputAction.next,
                             decoration: InputDecoration(
                               labelText: col.label,
                               prefixIcon: const Icon(Icons.add_box_outlined, size: 16),
@@ -843,7 +858,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
         }).toList();
 
         if (mounted) {
-          await Navigator.push(
+          final saved = await Navigator.push<bool>(
             context,
             MaterialPageRoute(
               builder: (context) => InvoicePreviewScreen(
@@ -854,6 +869,10 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
               ),
             ),
           );
+          if (saved == true) {
+            ref.read(invoiceFormProvider.notifier).initDefaults(template: state.activeTemplate);
+            _syncControllersWithState(ref.read(invoiceFormProvider));
+          }
         }
       } else {
         final invoiceId = await ref.read(invoiceFormProvider.notifier).saveInvoice();
@@ -891,11 +910,12 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
 
   Widget _buildBottomActionBar(InvoiceFormState state) {
     final bool isEnabled = state.customerName.trim().isNotEmpty && state.items.isNotEmpty;
+    final theme = Theme.of(context);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: theme.cardColor,
         border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.2))),
         boxShadow: [
           BoxShadow(
@@ -905,32 +925,51 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          OutlinedButton.icon(
-            onPressed: isEnabled ? () => _previewDocument(resetOnReturn: false, isTemporary: true) : null,
-            icon: const Icon(Icons.visibility_outlined),
-            label: const Text('Preview Document'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              side: BorderSide(
-                color: isEnabled ? AppTheme.primaryGreen : Colors.grey.shade300,
+          if (!isEnabled) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: Text(
+                'Please enter customer name and add at least one line item to enable preview & PDF generation.',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.error,
+                ),
               ),
-              foregroundColor: isEnabled ? AppTheme.primaryGreen : Colors.grey,
             ),
-          ),
-          const SizedBox(width: 16),
-          ElevatedButton.icon(
-            onPressed: isEnabled ? () => _previewDocument(resetOnReturn: true, isTemporary: false) : null,
-            icon: const Icon(Icons.picture_as_pdf),
-            label: const Text('Preview & Generate Document'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryGreen,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              elevation: 2,
-            ),
+          ],
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton.icon(
+                onPressed: isEnabled ? () => _previewDocument(resetOnReturn: false, isTemporary: true) : null,
+                icon: const Icon(Icons.visibility_outlined),
+                label: const Text('Preview Document'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  side: BorderSide(
+                    color: isEnabled ? AppTheme.primaryGreen : Colors.grey.shade300,
+                  ),
+                  foregroundColor: isEnabled ? AppTheme.primaryGreen : Colors.grey,
+                ),
+              ),
+              const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: isEnabled ? () => _previewDocument(resetOnReturn: true, isTemporary: false) : null,
+                icon: const Icon(Icons.picture_as_pdf),
+                label: const Text('Preview & Generate Document'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryGreen,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  elevation: 2,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1021,11 +1060,11 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.fact_check, color: AppTheme.deepBlue),
-            SizedBox(width: 10),
-            Text('Preview Filled Fields', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.deepBlue)),
+            Icon(Icons.fact_check, color: Theme.of(context).colorScheme.onSurface),
+            const SizedBox(width: 10),
+            Text('Preview Filled Fields', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
           ],
         ),
         content: SizedBox(
@@ -1057,15 +1096,15 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                       border: TableBorder.all(color: Colors.grey.withOpacity(0.15), width: 1, borderRadius: BorderRadius.circular(8)),
                       children: [
                         TableRow(
-                          decoration: BoxDecoration(color: AppTheme.deepBlue.withOpacity(0.05)),
-                          children: const [
+                          decoration: BoxDecoration(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05)),
+                          children: [
                             Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              child: Text('Field / Property', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.deepBlue)),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              child: Text('Field / Property', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
                             ),
                             Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              child: Text('Entered Value', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.deepBlue)),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              child: Text('Entered Value', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
                             ),
                           ],
                         ),
@@ -1087,7 +1126,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                 ),
               if (state.items.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                const Text('Line Items Summary:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.deepBlue)),
+                Text('Line Items Summary:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
                 const SizedBox(height: 8),
                 Flexible(
                   child: SingleChildScrollView(
@@ -1100,19 +1139,19 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                       border: TableBorder.all(color: Colors.grey.withOpacity(0.15), width: 1, borderRadius: BorderRadius.circular(8)),
                       children: [
                         TableRow(
-                          decoration: BoxDecoration(color: AppTheme.deepBlue.withOpacity(0.05)),
-                          children: const [
+                          decoration: BoxDecoration(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05)),
+                          children: [
                             Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                              child: Text('Description', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppTheme.deepBlue)),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              child: Text('Description', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Theme.of(context).colorScheme.onSurface)),
                             ),
                             Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                              child: Text('Qty', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppTheme.deepBlue)),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              child: Text('Qty', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Theme.of(context).colorScheme.onSurface)),
                             ),
                             Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                              child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppTheme.deepBlue)),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Theme.of(context).colorScheme.onSurface)),
                             ),
                           ],
                         ),
@@ -1156,23 +1195,130 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
     final templatesVal = ref.watch(templatesProvider);
     final companyVal = ref.watch(companyProfileStateProvider);
     final company = companyVal.value;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     _syncControllersWithState(state);
 
-    return Scaffold(
-      bottomNavigationBar: _buildBottomActionBar(state),
-      appBar: AppBar(
-        title: const Text('Generate Invoice'),
-        actions: [
-          OutlinedButton.icon(
-              onPressed: () {
+    // Build the summary content to be shared or embedded
+    Widget buildSummaryContent({required bool embedInCard}) {
+      final summaryBody = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'SUMMARY CALCULATIONS',
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+              letterSpacing: 0.5,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _calcRow('Sub Total', state.gstCalculations.subTotal),
+          _calcRow(
+              'CGST @ ${(state.gstPercentage / 2).toStringAsFixed(2)}%', state.gstCalculations.cgst),
+          _calcRow(
+              'SGST @ ${(state.gstPercentage / 2).toStringAsFixed(2)}%', state.gstCalculations.sgst),
+          Divider(color: theme.dividerColor.withOpacity(0.08)),
+          _calcRow('Grand Total', state.gstCalculations.grandTotal, isBold: true),
+          _calcRow('Advance Paid', state.advancePaid, isNegative: true),
+          Divider(color: theme.colorScheme.primary.withOpacity(0.3), thickness: 1.2),
+          _calcRow('Amount to be Paid', state.balanceDue,
+              isBold: true, color: theme.colorScheme.primary),
+          const SizedBox(height: 12),
+          Text(
+            'In Words: ${NumberToWords.convert(state.balanceDue)}',
+            style: TextStyle(
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+              color: theme.colorScheme.onSurface.withOpacity(0.5),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Card(
+            color: theme.colorScheme.primary.withOpacity(0.04),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(color: theme.colorScheme.primary.withOpacity(0.12), width: 0.8),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Layout Preset scaling',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10.5,
+                      color: theme.colorScheme.onSurface.withOpacity(0.8),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Preset: ${state.activeTemplate.layoutPreset.toUpperCase()}',
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.primary),
+                  ),
+                  Text(
+                    'Dimensions: ${state.activeTemplate.pageFormat} (${state.activeTemplate.pageWidth.toStringAsFixed(0)}x${state.activeTemplate.pageHeight.toStringAsFixed(0)} pt)',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+
+      if (embedInCard) {
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: summaryBody,
+          ),
+        );
+      }
+      return summaryBody;
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 950;
+
+        return Scaffold(
+          bottomNavigationBar: _buildBottomActionBar(state),
+          appBar: AppBar(
+            title: Text(
+              'Generate Invoice',
+              style: TextStyle(fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
+            ),
+            leading: isWide
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.menu_rounded),
+                    onPressed: () => layoutScaffoldKey.currentState?.openDrawer(),
+                  ),
+            actions: [
+              OutlinedButton.icon(
+                onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const InvoiceDesignerScreen()),
                   );
                 },
-                icon: const Icon(Icons.palette),
+                icon: const Icon(Icons.palette_outlined, size: 16),
                 label: const Text('Designer'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
               ),
               const SizedBox(width: 8),
               OutlinedButton.icon(
@@ -1182,44 +1328,59 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     MaterialPageRoute(builder: (context) => const TemplateManagementScreen()),
                   );
                 },
-                icon: const Icon(Icons.tune),
+                icon: const Icon(Icons.tune_rounded, size: 16),
                 label: const Text('Templates'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               templatesVal.when(
                 data: (list) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryGreen.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
+                    color: theme.colorScheme.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2), width: 1.0),
                   ),
-                  child: DropdownButton<String>(
-                    value: state.activeTemplate.id,
-                    underline: const SizedBox(),
-                    items: list.map((t) {
-                      return DropdownMenuItem(value: t.id, child: Text(t.name, style: const TextStyle(fontSize: 12)));
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        final template = list.firstWhere((t) => t.id == val);
-                        ref.read(invoiceFormProvider.notifier).updateTemplate(template);
-                        _syncControllersWithState(ref.read(invoiceFormProvider));
-                      }
-                    },
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: state.activeTemplate.id,
+                      dropdownColor: theme.cardColor,
+                      icon: Icon(Icons.arrow_drop_down_rounded, color: theme.colorScheme.primary),
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                      items: list.map((t) {
+                        return DropdownMenuItem(value: t.id, child: Text(t.name));
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          final template = list.firstWhere((t) => t.id == val);
+                          ref.read(invoiceFormProvider.notifier).updateTemplate(template);
+                          _syncControllersWithState(ref.read(invoiceFormProvider));
+                        }
+                      },
+                    ),
                   ),
                 ),
-                loading: () => const CircularProgressIndicator(),
-                error: (e, _) => const Icon(Icons.error),
+                loading: () => const SizedBox(
+                    width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+                error: (e, _) => const Icon(Icons.error, color: Colors.red),
               ),
               const SizedBox(width: 8),
               IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Reset Form',
+                icon: const Icon(Icons.refresh_rounded),
+                tooltip: 'Reset Form Fields',
                 onPressed: () {
                   ref.read(invoiceFormProvider.notifier).reset();
                   _syncControllersWithState(ref.read(invoiceFormProvider));
                 },
-              )
+              ),
+              const SizedBox(width: 8),
             ],
           ),
           body: Row(
@@ -1265,87 +1426,135 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                       const SizedBox(height: 16),
 
                       _buildGstModuleCard(state),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 16),
+
+                      // Embedding calculation panel on mobile/tablet viewports
+                      if (!isWide) ...[
+                        buildSummaryContent(embedInCard: true),
+                        const SizedBox(height: 32),
+                      ],
                     ],
                   ),
                 ),
               ),
 
-              // Right Quick Action Panel
-              Container(
-                width: 320,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  border: Border(left: BorderSide(color: Colors.grey.withOpacity(0.2))),
-                ),
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text('SUMMARY CALCULATIONS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.deepBlue)),
-                    const SizedBox(height: 16),
-                    _calcRow('Sub Total', state.gstCalculations.subTotal),
-                    _calcRow('CGST @ ${(state.gstPercentage / 2).toStringAsFixed(2)}%', state.gstCalculations.cgst),
-                    _calcRow('SGST @ ${(state.gstPercentage / 2).toStringAsFixed(2)}%', state.gstCalculations.sgst),
-                    const Divider(),
-                    _calcRow('Grand Total', state.gstCalculations.grandTotal, isBold: true),
-                    _calcRow('Advance Paid', state.advancePaid, isNegative: true),
-                    const Divider(color: AppTheme.primaryGreen),
-                    _calcRow('Amount to be Paid', state.balanceDue, isBold: true, color: AppTheme.primaryGreen),
-                    const SizedBox(height: 12),
-                    Text(
-                      'In Words: ${NumberToWords.convert(state.balanceDue)}',
-                      style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey),
-                    ),
-                    const Spacer(),
-                    Card(
-                      color: AppTheme.primaryGreen.withOpacity(0.05),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Layout presets', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                            const SizedBox(height: 4),
-                            Text('Preset: ${state.activeTemplate.layoutPreset.toUpperCase()}', style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
-                            Text('Page dimensions: ${state.activeTemplate.pageFormat} (${state.activeTemplate.pageWidth.toStringAsFixed(0)}x${state.activeTemplate.pageHeight.toStringAsFixed(0)} pt)', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                          ],
-                        ),
+              // Right Quick Action Panel (Only on wider screens)
+              if (isWide)
+                Container(
+                  width: 330,
+                  decoration: BoxDecoration(
+                    color: theme.cardColor,
+                    border: Border(
+                      left: BorderSide(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                        width: 1.0,
                       ),
                     ),
-                  ],
+                  ),
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      buildSummaryContent(embedInCard: false),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         );
+      },
+    );
+  }
+
+  List<Widget> _arrangeFieldsInPairs(BuildContext context, List<Widget> fields) {
+    final isWide = MediaQuery.of(context).size.width >= 950;
+    if (!isWide) return fields;
+
+    final List<Widget> grouped = [];
+    for (int i = 0; i < fields.length; i += 2) {
+      if (i + 1 < fields.length) {
+        grouped.add(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: fields[i]),
+              const SizedBox(width: 16),
+              Expanded(child: fields[i + 1]),
+            ],
+          ),
+        );
+      } else {
+        grouped.add(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: fields[i]),
+              const SizedBox(width: 16),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
+        );
+      }
+    }
+    return grouped;
+  }
+
+  Widget _buildChoiceChip({
+    required String label,
+    required bool selected,
+    required ValueChanged<bool> onSelected,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      selectedColor: theme.colorScheme.primary,
+      backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+      labelStyle: TextStyle(
+        color: selected
+            ? (isDark ? Colors.black : Colors.white)
+            : theme.colorScheme.onSurface.withOpacity(0.8),
+        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+        fontSize: 13,
+      ),
+      onSelected: onSelected,
+    );
   }
 
   // --- Premium Section Card Builders ---
 
   Widget _buildSectionCard({required String title, required IconData icon, required List<Widget> children}) {
+    final theme = Theme.of(context);
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
-                Icon(icon, color: AppTheme.deepBlue, size: 22),
+                Icon(icon, color: theme.colorScheme.primary, size: 20),
                 const SizedBox(width: 10),
                 Text(
                   title.toUpperCase(),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                    letterSpacing: 0.5,
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 20),
-            Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              children: children,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children.map((c) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: c,
+              )).toList(),
             ),
           ],
         ),
@@ -1359,19 +1568,24 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
 
     return Card(
       child: ExpansionTile(
-        leading: const Icon(Icons.business, color: AppTheme.deepBlue),
-        title: const Text('COMPANY PROFILE HEADER OVERRIDES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.deepBlue)),
+        leading: Icon(Icons.business, color: Theme.of(context).colorScheme.onSurface),
+        title: Text('COMPANY PROFILE HEADER OVERRIDES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Theme.of(context).colorScheme.onSurface)),
         subtitle: const Text('Change company details printed on this invoice (optional)', style: TextStyle(fontSize: 11, color: Colors.grey)),
         children: [
           Padding(
             padding: const EdgeInsets.all(20.0),
-            child: Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              children: companySec.fields
-                  .where((f) => f.isVisible)
-                  .map((f) => _buildDynamicFieldWidget('company_details', f))
-                  .toList(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: _arrangeFieldsInPairs(
+                context,
+                companySec.fields
+                    .where((f) => f.isVisible)
+                    .map((f) => _buildDynamicFieldWidget('company_details', f))
+                    .toList(),
+              ).map((c) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: c,
+              )).toList(),
             ),
           ),
         ],
@@ -1383,46 +1597,47 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
     final invoiceSec = state.activeTemplate.sections.firstWhere((s) => s.id == 'invoice_info', orElse: () => SectionSchema(id: 'invoice_info', title: '', orderIndex: 2, fields: []));
     if (!invoiceSec.isVisible) return const SizedBox();
 
-    final List<Widget> fields = [];
-    
-    // Auto-generated Invoice Number
-    fields.add(
-      SizedBox(
-        width: 300,
-        child: TextField(
-          controller: _controllers['invoice_number'],
-          decoration: const InputDecoration(
-            labelText: 'Invoice Number',
-            prefixIcon: Icon(Icons.tag),
-            helperText: 'Auto-generated but editable',
-          ),
-          onChanged: (val) {
-            ref.read(invoiceFormProvider.notifier).updateFieldValue('invoice_number', val);
-          },
-        ),
+    // 1. Build individual field widgets
+    final numberField = TextField(
+      controller: _controllers['invoice_number'],
+      textInputAction: TextInputAction.next,
+      decoration: const InputDecoration(
+        labelText: 'Invoice Number',
+        prefixIcon: Icon(Icons.tag),
+        helperText: 'Auto-generated but editable',
       ),
+      onChanged: (val) {
+        ref.read(invoiceFormProvider.notifier).updateFieldValue('invoice_number', val);
+      },
     );
 
-    // Date Fields using custom decorator calendar picking
     final dateVal = state.fieldValues['invoice_date'] ?? DateTime.now();
     final DateTime invoiceDate = dateVal is DateTime ? dateVal : DateTime.tryParse(dateVal.toString()) ?? DateTime.now();
-    fields.add(_buildDateField('Invoice Date', 'invoice_date', invoiceDate));
+    final dateField = _buildDateField('Invoice Date', 'invoice_date', invoiceDate);
 
     final dueVal = state.fieldValues['due_date'] ?? DateTime.now().add(const Duration(days: 7));
     final DateTime dueDate = dueVal is DateTime ? dueVal : DateTime.tryParse(dueVal.toString()) ?? DateTime.now();
-    fields.add(_buildDateField('Due Date', 'due_date', dueDate));
+    final dueDateField = _buildDateField('Due Date', 'due_date', dueDate);
 
-    // Other invoice fields
+    final List<Widget> otherFields = [];
     for (final f in invoiceSec.fields) {
       if (f.id == 'invoice_number' || f.id == 'invoice_date' || f.id == 'due_date') continue;
       if (!f.isVisible) continue;
-      fields.add(_buildDynamicFieldWidget('invoice_info', f));
+      otherFields.add(_buildDynamicFieldWidget('invoice_info', f));
     }
+
+    final List<Widget> fieldsList = [
+      numberField,
+      dateField,
+      dueDateField,
+      ...otherFields,
+    ];
+    final arrangedFields = _arrangeFieldsInPairs(context, fieldsList);
 
     return _buildSectionCard(
       title: 'Invoice Details',
       icon: Icons.receipt_long,
-      children: fields,
+      children: arrangedFields,
     );
   }
 
@@ -1438,7 +1653,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
     return _buildSectionCard(
       title: 'Bill To (Client Details)',
       icon: Icons.person_outline,
-      children: fields,
+      children: _arrangeFieldsInPairs(context, fields),
     );
   }
 
@@ -1469,11 +1684,11 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.mode_of_travel, color: AppTheme.deepBlue, size: 22),
+                Icon(Icons.mode_of_travel, color: Theme.of(context).colorScheme.onSurface, size: 22),
                 const SizedBox(width: 10),
-                const Text(
+                Text(
                   'TOUR DETAILS',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface),
                 ),
                 const SizedBox(width: 12),
                 Container(
@@ -1497,10 +1712,12 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
               ],
             ),
             const SizedBox(height: 20),
-            Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              children: fields,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: _arrangeFieldsInPairs(context, fields).map((c) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: c,
+              )).toList(),
             ),
           ],
         ),
@@ -1527,13 +1744,13 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.account_balance, color: AppTheme.deepBlue, size: 22),
-                    SizedBox(width: 10),
+                    Icon(Icons.account_balance, color: Theme.of(context).colorScheme.onSurface, size: 22),
+                    const SizedBox(width: 10),
                     Text(
                       'BANK ACCOUNT DETAILS',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface),
                     ),
                   ],
                 ),
@@ -1555,10 +1772,12 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
             const SizedBox(height: 20),
             Padding(
               padding: const EdgeInsets.only(left: 8.0),
-              child: Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: fields,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: _arrangeFieldsInPairs(context, fields).map((c) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: c,
+                )).toList(),
               ),
             ),
           ],
@@ -1581,13 +1800,13 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                Icon(Icons.description, color: AppTheme.deepBlue, size: 22),
-                SizedBox(width: 10),
+                Icon(Icons.description, color: Theme.of(context).colorScheme.onSurface, size: 22),
+                const SizedBox(width: 10),
                 Text(
                   'TERMS & CONDITIONS',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface),
                 ),
               ],
             ),
@@ -1626,34 +1845,34 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                Icon(Icons.border_color, color: AppTheme.deepBlue, size: 22),
-                SizedBox(width: 10),
-                Text('AUTHORIZED SIGNATURE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue)),
+                Icon(Icons.border_color, color: Theme.of(context).colorScheme.onSurface, size: 22),
+                const SizedBox(width: 10),
+                Text('AUTHORIZED SIGNATURE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface)),
               ],
             ),
             const SizedBox(height: 20),
             Row(
               children: [
-                ChoiceChip(
-                  label: const Text('Default Company'),
+                 _buildChoiceChip(
+                  label: 'Default Company',
                   selected: sigType == 'company',
                   onSelected: (val) {
                     if (val) ref.read(invoiceFormProvider.notifier).updateFieldValue('signature_type', 'company');
                   },
                 ),
                 const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('Upload Custom'),
+                _buildChoiceChip(
+                  label: 'Upload Custom',
                   selected: sigType == 'upload',
                   onSelected: (val) {
                     if (val) ref.read(invoiceFormProvider.notifier).updateFieldValue('signature_type', 'upload');
                   },
                 ),
                 const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('Type Name'),
+                _buildChoiceChip(
+                  label: 'Type Name',
                   selected: sigType == 'text',
                   onSelected: (val) {
                     if (val) ref.read(invoiceFormProvider.notifier).updateFieldValue('signature_type', 'text');
@@ -1734,6 +1953,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     width: 350,
                     child: TextField(
                       controller: _controllers['signature_text'],
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
                         labelText: 'Type Signatory Name',
                         prefixIcon: Icon(Icons.edit_note),
@@ -1776,22 +1996,19 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
   }
 
   Widget _buildDateField(String label, String fieldId, DateTime date) {
-    return SizedBox(
-      width: 300,
-      child: InkWell(
-        onTap: () => _selectDate(context, date, (d) {
-          ref.read(invoiceFormProvider.notifier).updateFieldValue(fieldId, d);
-        }),
-        borderRadius: BorderRadius.circular(12),
-        child: InputDecorator(
-          decoration: InputDecoration(
-            labelText: label,
-            prefixIcon: const Icon(Icons.calendar_today),
-          ),
-          child: Text(
-            _df.format(date),
-            style: const TextStyle(fontSize: 14),
-          ),
+    return InkWell(
+      onTap: () => _selectDate(context, date, (d) {
+        ref.read(invoiceFormProvider.notifier).updateFieldValue(fieldId, d);
+      }),
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: const Icon(Icons.calendar_today),
+        ),
+        child: Text(
+          _df.format(date),
+          style: const TextStyle(fontSize: 14),
         ),
       ),
     );
@@ -1799,8 +2016,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
 
   Widget _buildDynamicFieldWidget(String sectionId, FieldSchema field) {
     final controller = _controllers[field.id];
-    final isDesktop = MediaQuery.of(context).size.width > 900;
-    final width = isDesktop ? 300.0 : 1000.0;
+    final width = double.infinity;
 
     Widget inputWidget;
 
@@ -1851,6 +2067,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
       case 'number':
         inputWidget = TextField(
           controller: controller,
+          textInputAction: TextInputAction.next,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
             labelText: field.label,
@@ -1865,6 +2082,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
       case 'currency':
         inputWidget = TextField(
           controller: controller,
+          textInputAction: TextInputAction.next,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
             labelText: field.label,
@@ -1882,6 +2100,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
             ref.watch(invoiceFormProvider).customerName.trim().isEmpty;
         inputWidget = TextField(
           controller: controller,
+          textInputAction: TextInputAction.next,
           decoration: InputDecoration(
             labelText: field.label,
             prefixIcon: const Icon(Icons.text_fields, size: 16),
@@ -1929,11 +2148,11 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.list_alt, color: AppTheme.deepBlue, size: 22),
-                    SizedBox(width: 10),
-                    Text('LINE ITEMS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue)),
+                    Icon(Icons.list_alt, color: Theme.of(context).colorScheme.onSurface, size: 22),
+                    const SizedBox(width: 10),
+                    Text('LINE ITEMS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface)),
                   ],
                 ),
                 ElevatedButton.icon(
@@ -2040,7 +2259,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                                   children: [
                                     Text(
                                       itemDesc,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.deepBlue),
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Theme.of(context).colorScheme.onSurface),
                                     ),
                                     const SizedBox(height: 6),
                                     Wrap(
@@ -2127,27 +2346,27 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                Icon(Icons.percent, color: AppTheme.deepBlue, size: 22),
-                SizedBox(width: 10),
-                Text('GST & PAYMENTS CALCULATION', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.deepBlue)),
+                Icon(Icons.percent, color: Theme.of(context).colorScheme.onSurface, size: 22),
+                const SizedBox(width: 10),
+                Text('GST & PAYMENTS CALCULATION', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface)),
               ],
             ),
             const SizedBox(height: 20),
             Row(
               children: [
                 const Text('GST Mode: '),
-                ChoiceChip(
-                  label: const Text('Exclusive (Amount + GST)'),
+                _buildChoiceChip(
+                  label: 'Exclusive (Amount + GST)',
                   selected: !state.isGstInclusive,
                   onSelected: (val) {
                     ref.read(invoiceFormProvider.notifier).updateFields(isGstInclusive: !val);
                   },
                 ),
                 const SizedBox(width: 12),
-                ChoiceChip(
-                  label: const Text('Inclusive (GST in Total)'),
+                _buildChoiceChip(
+                  label: 'Inclusive (GST in Total)',
                   selected: state.isGstInclusive,
                   onSelected: (val) {
                     ref.read(invoiceFormProvider.notifier).updateFields(isGstInclusive: val);
@@ -2189,6 +2408,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                     width: 80,
                     child: TextField(
                       controller: _customGstCtrl,
+                      textInputAction: TextInputAction.next,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(labelText: 'Rate %', contentPadding: EdgeInsets.all(8)),
                       onChanged: (val) {
@@ -2220,6 +2440,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                   width: 300,
                   child: TextField(
                     controller: _advancePaidCtrl,
+                    textInputAction: TextInputAction.next,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(labelText: 'Advance Payment Received (Rs.)', prefixIcon: Icon(Icons.payment)),
                     onChanged: (val) => ref.read(invoiceFormProvider.notifier).updateFields(advancePaid: double.tryParse(val) ?? 0.0),
@@ -2229,6 +2450,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
                   width: 300,
                   child: TextField(
                     controller: _balanceDueCtrl,
+                    textInputAction: TextInputAction.next,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                       labelText: 'Remaining Balance Due (Rs.)',
@@ -2254,6 +2476,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
   }
 
   Widget _calcRow(String label, double value, {bool isBold = false, bool isNegative = false, Color? color}) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -2265,7 +2488,7 @@ class _InvoiceFormScreenState extends ConsumerState<InvoiceFormScreen> {
             style: TextStyle(
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
               fontSize: 13,
-              color: color ?? (isBold ? AppTheme.deepBlue : null),
+              color: color ?? (isBold ? theme.colorScheme.onSurface : null),
             ),
           ),
         ],

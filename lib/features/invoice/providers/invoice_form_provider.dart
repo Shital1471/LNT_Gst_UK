@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:drift/drift.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/providers/database_provider.dart';
