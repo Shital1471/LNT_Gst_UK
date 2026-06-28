@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:archive/archive.dart';
 import 'package:docx_creator/docx_creator.dart';
 import 'package:intl/intl.dart';
 import '../../../core/database/app_database.dart';
@@ -142,22 +143,23 @@ class DocxGeneratorService {
     final document = docx();
 
     // Set margins based on template configuration (converting points to twips)
+    final double leftMarginVal = isTourism ? 15 : adjustedTemplate.marginLeft;
+    final double rightMarginVal = isTourism ? 15 : adjustedTemplate.marginRight;
+    final double topMarginVal = isTourism ? 15 : adjustedTemplate.marginTop;
+    final double bottomMarginVal = isTourism ? 15 : adjustedTemplate.marginBottom;
+
     document.section(
       pageSize: DocxPageSize.a4,
       orientation: DocxPageOrientation.portrait,
-      marginTop: (adjustedTemplate.marginTop * 20).toInt(),
-      marginBottom: (adjustedTemplate.marginBottom * 20).toInt(),
-      marginLeft: (adjustedTemplate.marginLeft * 20).toInt(),
-      marginRight: (adjustedTemplate.marginRight * 20).toInt(),
+      marginTop: (topMarginVal * 20).toInt(),
+      marginBottom: (bottomMarginVal * 20).toInt(),
+      marginLeft: (leftMarginVal * 20).toInt(),
+      marginRight: (rightMarginVal * 20).toInt(),
     );
 
     // Calculate available page width in twips
     final int totalWidthTwips =
-        ((adjustedTemplate.pageWidth -
-                    adjustedTemplate.marginLeft -
-                    adjustedTemplate.marginRight) *
-                20)
-            .toInt();
+        ((adjustedTemplate.pageWidth - leftMarginVal - rightMarginVal) * 20).toInt();
 
     // Load logo and signature images if available
     Uint8List? logoBytes;
@@ -290,6 +292,25 @@ class DocxGeneratorService {
       final web = fieldValues['company_website'] ?? 'www.lntourism.com';
       final address = fieldValues['company_address'] ?? company.address;
 
+      final customerSec = adjustedTemplate.sections.firstWhere(
+        (s) => s.id == 'customer_details',
+        orElse: () => SectionSchema(
+          id: 'customer_details',
+          title: 'BILL TO',
+          orderIndex: 1,
+          fields: [],
+        ),
+      );
+      final serviceSec = adjustedTemplate.sections.firstWhere(
+        (s) => s.id == 'service_details',
+        orElse: () => SectionSchema(
+          id: 'service_details',
+          title: 'SERVICE DETAILS',
+          orderIndex: 3,
+          fields: [],
+        ),
+      );
+
       final customerName = fieldValues['customer_name'] ?? '';
       final customerAddress = fieldValues['customer_address'] ?? '';
       final customerCityStatePin = fieldValues['customer_city_state_pin'] ?? '';
@@ -318,12 +339,14 @@ class DocxGeneratorService {
         return DocxTableRow(
           cells: [
             DocxTableCell(
-              width: (rightColWidth * 0.45).toInt(),
+              width: (rightColWidth * 0.43).toInt(),
               children: [
                 DocxParagraph(
+                  spacingBefore: 0,
+                  spacingAfter: 0,
                   children: [
                     DocxText(
-                      '$label :',
+                      label,
                       fontWeight: DocxFontWeight.bold,
                       fontSize: 8,
                       fontFamily: 'Times New Roman',
@@ -333,11 +356,17 @@ class DocxGeneratorService {
               ],
             ),
             DocxTableCell(
-              width: (rightColWidth * 0.55).toInt(),
+              width: (rightColWidth * 0.57).toInt(),
               children: [
                 DocxParagraph(
+                  spacingBefore: 0,
+                  spacingAfter: 0,
                   children: [
-                    DocxText(value, fontSize: 8, fontFamily: 'Times New Roman'),
+                    DocxText(
+                      value.isEmpty ? '' : ':  $value',
+                      fontSize: 8,
+                      fontFamily: 'Times New Roman',
+                    ),
                   ],
                 ),
               ],
@@ -355,10 +384,12 @@ class DocxGeneratorService {
 
       final companyDetailsTableCellChildren = <DocxParagraph>[
         DocxParagraph(
+          spacingBefore: 0,
+          spacingAfter: 0,
           children: [
             DocxText(
               companyName,
-              fontSize: headerStyle.fontSize,
+              fontSize: 10,
               fontWeight: _getDocxWeight(headerStyle.fontWeight),
               color: _getDocxColor(headerStyle.textColor) ?? primaryBlue,
               fontFamily: headerStyle.fontFamily,
@@ -366,6 +397,8 @@ class DocxGeneratorService {
           ],
         ),
         DocxParagraph(
+          spacingBefore: 0,
+          spacingAfter: 0,
           children: [
             DocxText(
               tagline,
@@ -377,10 +410,40 @@ class DocxGeneratorService {
           ],
         ),
         DocxParagraph(
+          spacingBefore: 0,
+          spacingAfter: 0,
           children: [
             DocxText(
-              "Ph: $phone   Email: $email   Web: $web",
+              phone.toString(),
               fontSize: 7.5,
+              fontWeight: DocxFontWeight.bold,
+              color: primaryOrange,
+              fontFamily: 'Times New Roman',
+            ),
+          ],
+        ),
+        DocxParagraph(
+          spacingBefore: 0,
+          spacingAfter: 0,
+          children: [
+            DocxText(
+              email.toString(),
+              fontSize: 7.5,
+              fontWeight: DocxFontWeight.bold,
+              color: primaryOrange,
+              fontFamily: 'Times New Roman',
+            ),
+          ],
+        ),
+        DocxParagraph(
+          spacingBefore: 0,
+          spacingAfter: 0,
+          children: [
+            DocxText(
+              web.toString(),
+              fontSize: 7.5,
+              fontWeight: DocxFontWeight.bold,
+              color: primaryOrange,
               fontFamily: 'Times New Roman',
             ),
           ],
@@ -392,6 +455,8 @@ class DocxGeneratorService {
         logoTableCellChildren.add(
           DocxParagraph(
             align: DocxAlign.center,
+            spacingBefore: 0,
+            spacingAfter: 0,
             children: [
               DocxInlineImage(
                 bytes: logoBytes,
@@ -406,6 +471,8 @@ class DocxGeneratorService {
         logoTableCellChildren.add(
           DocxParagraph(
             align: DocxAlign.center,
+            spacingBefore: 0,
+            spacingAfter: 0,
             children: [
               DocxText(
                 'LN TOURISM',
@@ -419,11 +486,13 @@ class DocxGeneratorService {
         );
       }
 
-      // Nested Table inside Left Column to split into top (details & logo) and bottom (address)
       final leftAreaTable = DocxTable(
         width: leftAreaW,
         widthType: DocxWidthType.dxa,
-        style: DocxTableStyle.plain,
+        style: DocxTableStyle(
+          cellPadding: 0,
+          border: DocxBorder.none,
+        ),
         rows: [
           DocxTableRow(
             cells: [
@@ -444,6 +513,8 @@ class DocxGeneratorService {
                 colSpan: 2,
                 children: [
                   DocxParagraph(
+                    spacingBefore: 0,
+                    spacingAfter: 0,
                     children: [
                       DocxText(
                         "Office Address : $address",
@@ -463,6 +534,7 @@ class DocxGeneratorService {
         width: col4Width,
         widthType: DocxWidthType.dxa,
         style: DocxTableStyle(
+          cellPadding: 40,
           borderTop: DocxBorderSide(
             style: DocxBorder.single,
             color: primaryGreen,
@@ -495,6 +567,8 @@ class DocxGeneratorService {
                 children: [
                   DocxParagraph(
                     align: DocxAlign.center,
+                    spacingBefore: 0,
+                    spacingAfter: 0,
                     children: [
                       DocxText(
                         "INVOICE",
@@ -522,6 +596,7 @@ class DocxGeneratorService {
         width: totalWidthTwips,
         widthType: DocxWidthType.dxa,
         style: DocxTableStyle(
+          cellPadding: 40,
           borderTop: DocxBorderSide(
             style: DocxBorder.dashed,
             color: greyBorderColor,
@@ -542,7 +617,9 @@ class DocxGeneratorService {
             cells: [
               DocxTableCell(
                 width: leftAreaW,
-                children: [leftAreaTable],
+                children: [
+                  leftAreaTable,
+                ],
               ),
               DocxTableCell(
                 width: col3Width,
@@ -551,11 +628,13 @@ class DocxGeneratorService {
                   color: primaryGreen,
                   size: 12,
                 ),
-                children: [DocxParagraph(children: [])],
+                children: [DocxParagraph(spacingBefore: 0, spacingAfter: 0, children: [])],
               ),
               DocxTableCell(
                 width: col4Width,
-                children: [invoiceBoxTable],
+                children: [
+                  invoiceBoxTable,
+                ],
               ),
             ],
           ),
@@ -563,7 +642,15 @@ class DocxGeneratorService {
       );
 
       document.addTable(headerTable);
-      document.p(''); // Spacer
+      
+      // Tight precise spacer gap matching the template's dynamic sectionGap
+      document.paragraph(
+        DocxParagraph(
+          spacingBefore: 0,
+          spacingAfter: (adjustedTemplate.sectionGap * 20).toInt(),
+          children: [DocxText("", fontSize: 1)],
+        ),
+      );
 
       // -- 2. Bill-To & Service Details Table --
       final tourTrip = fieldValues['tour_trip'] ?? '';
@@ -598,6 +685,8 @@ class DocxGeneratorService {
               borderBottom: borderBottom,
               children: [
                 DocxParagraph(
+                  spacingBefore: 0,
+                  spacingAfter: 0,
                   children: [
                     DocxText(
                       '$label :',
@@ -617,6 +706,8 @@ class DocxGeneratorService {
               borderBottom: borderBottom,
               children: [
                 DocxParagraph(
+                  spacingBefore: 0,
+                  spacingAfter: 0,
                   children: [
                     DocxText(
                       value,
@@ -636,6 +727,7 @@ class DocxGeneratorService {
         width: totalWidthTwips,
         widthType: DocxWidthType.dxa,
         style: DocxTableStyle(
+          cellPadding: 40,
           borderTop: DocxBorderSide(
             style: DocxBorder.dashed,
             color: blackColor,
@@ -659,6 +751,8 @@ class DocxGeneratorService {
                 width: colWidth,
                 children: [
                   DocxParagraph(
+                    spacingBefore: 0,
+                    spacingAfter: 40,
                     borderBottomSide: DocxBorderSide(
                       style: DocxBorder.single,
                       color: blackColor,
@@ -666,7 +760,7 @@ class DocxGeneratorService {
                     ),
                     children: [
                       DocxText(
-                        "BILL TO",
+                        customerSec.title.toUpperCase(),
                         color:
                             _getDocxColor(sectionTitleStyle.textColor) ??
                             primaryGreen,
@@ -681,7 +775,10 @@ class DocxGeneratorService {
                   DocxTable(
                     width: colWidth,
                     widthType: DocxWidthType.dxa,
-                    style: DocxTableStyle.plain,
+                    style: DocxTableStyle(
+                      border: DocxBorder.none,
+                      cellPadding: 20,
+                    ),
                     rows: [
                       _dottedRow(
                         "Name / Company",
@@ -712,13 +809,15 @@ class DocxGeneratorService {
               // Spacer Column
               DocxTableCell(
                 width: spaceWidth,
-                children: [DocxParagraph(children: [])],
+                children: [DocxParagraph(spacingBefore: 0, spacingAfter: 0, children: [])],
               ),
               // SERVICE DETAIL Column
               DocxTableCell(
                 width: colWidth,
                 children: [
                   DocxParagraph(
+                    spacingBefore: 0,
+                    spacingAfter: 40,
                     borderBottomSide: DocxBorderSide(
                       style: DocxBorder.single,
                       color: blackColor,
@@ -726,7 +825,7 @@ class DocxGeneratorService {
                     ),
                     children: [
                       DocxText(
-                        "SERVICE DETAIL 8",
+                        serviceSec.title.toUpperCase(),
                         color:
                             _getDocxColor(sectionTitleStyle.textColor) ??
                             primaryGreen,
@@ -741,7 +840,10 @@ class DocxGeneratorService {
                   DocxTable(
                     width: colWidth,
                     widthType: DocxWidthType.dxa,
-                    style: DocxTableStyle.plain,
+                    style: DocxTableStyle(
+                      border: DocxBorder.none,
+                      cellPadding: 20,
+                    ),
                     rows: [
                       _dottedRow("Tour / Trip", tourTrip.toString(), colWidth),
                       _dottedRow(
@@ -771,7 +873,15 @@ class DocxGeneratorService {
       );
 
       document.addTable(billToAndServiceTable);
-      document.p(''); // Spacer
+      
+      // Tight precise spacer gap matching the template's dynamic sectionGap
+      document.paragraph(
+        DocxParagraph(
+          spacingBefore: 0,
+          spacingAfter: (adjustedTemplate.sectionGap * 20).toInt(),
+          children: [DocxText("", fontSize: 1)],
+        ),
+      );
 
       // -- 3. Items Table (Dynamic Columns) --
       final visibleCols =
@@ -796,6 +906,8 @@ class DocxGeneratorService {
               children: [
                 DocxParagraph(
                   align: DocxAlign.center,
+                  spacingBefore: 0,
+                  spacingAfter: 0,
                   children: [
                     DocxText(
                       col.label,
@@ -850,6 +962,8 @@ class DocxGeneratorService {
                 children: [
                   DocxParagraph(
                     align: align,
+                    spacingBefore: 0,
+                    spacingAfter: 0,
                     children: [
                       DocxText(
                         cellText,
@@ -873,12 +987,21 @@ class DocxGeneratorService {
           border: DocxBorder.single,
           borderColor: '000000',
           borderWidth: 4,
+          cellPadding: 70,
         ),
         rows: tblRows,
       );
 
       document.addTable(itemsTable);
-      document.p(''); // Spacer
+      
+      // Tight precise spacer gap matching the template's dynamic sectionGap
+      document.paragraph(
+        DocxParagraph(
+          spacingBefore: 0,
+          spacingAfter: (adjustedTemplate.sectionGap * 20).toInt(),
+          children: [DocxText("", fontSize: 1)],
+        ),
+      );
 
       // -- 4. Totals Block --
       final int leftTotalW = (totalWidthTwips * 0.55).toInt();
@@ -886,29 +1009,18 @@ class DocxGeneratorService {
       final int spaceTotalW = totalWidthTwips - leftTotalW - rightTotalW;
 
       final wordsTable = DocxTable(
-        width: leftTotalW,
+        width: totalWidthTwips,
         widthType: DocxWidthType.dxa,
         style: DocxTableStyle(
-          borderTop: DocxBorderSide(
-            style: DocxBorder.dashed,
-            color: blackColor,
-            size: 6,
-          ),
+          cellPadding: 60,
+          borderTop: DocxBorderSide.none(),
           borderBottom: DocxBorderSide(
-            style: DocxBorder.dashed,
+            style: DocxBorder.dotted,
             color: blackColor,
             size: 6,
           ),
-          borderLeft: DocxBorderSide(
-            style: DocxBorder.dashed,
-            color: blackColor,
-            size: 6,
-          ),
-          borderRight: DocxBorderSide(
-            style: DocxBorder.dashed,
-            color: blackColor,
-            size: 6,
-          ),
+          borderLeft: DocxBorderSide.none(),
+          borderRight: DocxBorderSide.none(),
           borderInsideH: DocxBorderSide.none(),
           borderInsideV: DocxBorderSide.none(),
         ),
@@ -916,9 +1028,11 @@ class DocxGeneratorService {
           DocxTableRow(
             cells: [
               DocxTableCell(
-                width: leftTotalW,
+                width: totalWidthTwips,
                 children: [
                   DocxParagraph(
+                    spacingBefore: 0,
+                    spacingAfter: 0,
                     children: [
                       DocxText(
                         "Amount to be paid in words : ${invoice.amountPaidInWords.endsWith(' Only') ? '${invoice.amountPaidInWords}.' : (invoice.amountPaidInWords.endsWith(' Only.') ? invoice.amountPaidInWords : '${invoice.amountPaidInWords} Only.')}",
@@ -956,6 +1070,8 @@ class DocxGeneratorService {
               shadingFill: shading,
               children: [
                 DocxParagraph(
+                  spacingBefore: 0,
+                  spacingAfter: 0,
                   children: [
                     DocxText(
                       label,
@@ -974,6 +1090,8 @@ class DocxGeneratorService {
               children: [
                 DocxParagraph(
                   align: DocxAlign.right,
+                  spacingBefore: 0,
+                  spacingAfter: 0,
                   children: [
                     DocxText(
                       "Rs. $value",
@@ -994,6 +1112,7 @@ class DocxGeneratorService {
         width: rightTotalW,
         widthType: DocxWidthType.dxa,
         style: DocxTableStyle(
+          cellPadding: 50,
           borderTop: DocxBorderSide(
             style: DocxBorder.dashed,
             color: blackColor,
@@ -1015,12 +1134,12 @@ class DocxGeneratorService {
             size: 6,
           ),
           borderInsideH: DocxBorderSide(
-            style: DocxBorder.single,
+            style: DocxBorder.dashed,
             color: blackColor,
             size: 6,
           ),
           borderInsideV: DocxBorderSide(
-            style: DocxBorder.single,
+            style: DocxBorder.dashed,
             color: blackColor,
             size: 6,
           ),
@@ -1055,23 +1174,50 @@ class DocxGeneratorService {
       final totalsLayoutTable = DocxTable(
         width: totalWidthTwips,
         widthType: DocxWidthType.dxa,
-        style: DocxTableStyle.plain,
+        style: DocxTableStyle(
+          cellPadding: 0,
+          border: DocxBorder.none,
+        ),
         rows: [
           DocxTableRow(
             cells: [
-              DocxTableCell(width: leftTotalW, children: [wordsTable]),
               DocxTableCell(
-                width: spaceTotalW,
-                children: [DocxParagraph(children: [])],
+                width: leftTotalW + spaceTotalW,
+                children: [DocxParagraph(spacingBefore: 0, spacingAfter: 0, children: [])],
               ),
-              DocxTableCell(width: rightTotalW, children: [totalsTable]),
+              DocxTableCell(
+                width: rightTotalW,
+                children: [
+                  totalsTable,
+                ],
+              ),
             ],
           ),
         ],
       );
 
       document.addTable(totalsLayoutTable);
-      document.p(''); // Spacer
+      
+      // Tight precise spacer gap matching the template's dynamic sectionGap
+      document.paragraph(
+        DocxParagraph(
+          spacingBefore: 0,
+          spacingAfter: (adjustedTemplate.sectionGap * 20).toInt(),
+          children: [DocxText("", fontSize: 1)],
+        ),
+      );
+
+      // Add Words Box Table below the subtotal / totals table block
+      document.addTable(wordsTable);
+
+      // Tight precise spacer gap matching the template's dynamic sectionGap
+      document.paragraph(
+        DocxParagraph(
+          spacingBefore: 0,
+          spacingAfter: (adjustedTemplate.sectionGap * 20).toInt(),
+          children: [DocxText("", fontSize: 1)],
+        ),
+      );
 
       // -- 5. Footer Block (Ordered columns horizontally) --
       final visibleFooters = adjustedTemplate.footerSections.where((f) {
@@ -1115,6 +1261,8 @@ class DocxGeneratorService {
         if (fSec.id == 'terms_conditions') {
           cellParagraphs.add(
             DocxParagraph(
+              spacingBefore: 0,
+              spacingAfter: 40,
               children: [
                 DocxText(
                   fSec.title.toUpperCase(),
@@ -1131,6 +1279,8 @@ class DocxGeneratorService {
           for (final term in termsList) {
             cellParagraphs.add(
               DocxParagraph(
+                spacingBefore: 0,
+                spacingAfter: 10,
                 children: [
                   DocxText(
                     term,
@@ -1145,6 +1295,8 @@ class DocxGeneratorService {
         } else if (fSec.id == 'bank_details') {
           cellParagraphs.add(
             DocxParagraph(
+              spacingBefore: 0,
+              spacingAfter: 40,
               children: [
                 DocxText(
                   fSec.title.toUpperCase(),
@@ -1159,64 +1311,21 @@ class DocxGeneratorService {
             ),
           );
 
-
-          cellParagraphs.add(DocxParagraph(children: [])); // spacing
-          // We can't nest tables inside table cells directly easily in DocxTable API sometimes,
-          // so let's write paragraphs for bank info instead of nested tables to be safe!
-          cellParagraphs.add(
-            DocxParagraph(
-              children: [
-                DocxText(
-                  "Account Name: $bankAccountName",
-                  fontSize: footerStyle.fontSize,
-                  fontFamily: footerStyle.fontFamily,
-                  color: _getDocxColor(footerStyle.textColor),
-                ),
-              ],
-            ),
-          );
-          cellParagraphs.add(
-            DocxParagraph(
-              children: [
-                DocxText(
-                  "Bank Name: $bankName",
-                  fontSize: footerStyle.fontSize,
-                  fontFamily: footerStyle.fontFamily,
-                  color: _getDocxColor(footerStyle.textColor),
-                ),
-              ],
-            ),
-          );
-          cellParagraphs.add(
-            DocxParagraph(
-              children: [
-                DocxText(
-                  "Account No: $bankAccountNo",
-                  fontSize: footerStyle.fontSize,
-                  fontFamily: footerStyle.fontFamily,
-                  color: _getDocxColor(footerStyle.textColor),
-                ),
-              ],
-            ),
-          );
-          cellParagraphs.add(
-            DocxParagraph(
-              children: [
-                DocxText(
-                  "IFSC Code: $bankIfsc",
-                  fontSize: footerStyle.fontSize,
-                  fontFamily: footerStyle.fontFamily,
-                  color: _getDocxColor(footerStyle.textColor),
-                ),
-              ],
-            ),
-          );
-          if (bankBranch.isNotEmpty) {
+          void _addBankField(String label, String value) {
             cellParagraphs.add(
               DocxParagraph(
+                spacingBefore: 0,
+                spacingAfter: 20,
                 children: [
                   DocxText(
-                    "Branch: $bankBranch",
+                    "$label: ",
+                    fontWeight: DocxFontWeight.bold,
+                    fontSize: footerStyle.fontSize,
+                    fontFamily: footerStyle.fontFamily,
+                    color: _getDocxColor(footerStyle.textColor),
+                  ),
+                  DocxText(
+                    value,
                     fontSize: footerStyle.fontSize,
                     fontFamily: footerStyle.fontFamily,
                     color: _getDocxColor(footerStyle.textColor),
@@ -1225,11 +1334,21 @@ class DocxGeneratorService {
               ),
             );
           }
+
+          _addBankField("Account Name", bankAccountName.toString());
+          _addBankField("Bank Name", bankName.toString());
+          _addBankField("Account No", bankAccountNo.toString());
+          _addBankField("IFSC Code", bankIfsc.toString());
+          if (bankBranch.isNotEmpty) {
+            _addBankField("Branch", bankBranch.toString());
+          }
         } else {
           // signature
           cellParagraphs.add(
             DocxParagraph(
               align: DocxAlign.center,
+              spacingBefore: 0,
+              spacingAfter: 20,
               children: [
                 DocxText(
                   "FOR ${companyName.toUpperCase()}",
@@ -1244,6 +1363,8 @@ class DocxGeneratorService {
           cellParagraphs.add(
             DocxParagraph(
               align: DocxAlign.center,
+              spacingBefore: 0,
+              spacingAfter: 0,
               children: [
                 DocxText(
                   "This is a computer-generated invoice.",
@@ -1257,6 +1378,8 @@ class DocxGeneratorService {
           cellParagraphs.add(
             DocxParagraph(
               align: DocxAlign.center,
+              spacingBefore: 0,
+              spacingAfter: 20,
               children: [
                 DocxText(
                   "Subject to applicable laws of India.",
@@ -1267,12 +1390,13 @@ class DocxGeneratorService {
               ],
             ),
           );
-          cellParagraphs.add(DocxParagraph(children: [])); // spacing
 
           if (sigBytes != null) {
             cellParagraphs.add(
               DocxParagraph(
                 align: DocxAlign.center,
+                spacingBefore: 10,
+                spacingAfter: 10,
                 borderBottomSide: DocxBorderSide(
                   style: DocxBorder.single,
                   color: DocxColor('CCCCCC'),
@@ -1292,6 +1416,8 @@ class DocxGeneratorService {
             cellParagraphs.add(
               DocxParagraph(
                 align: DocxAlign.center,
+                spacingBefore: 10,
+                spacingAfter: 10,
                 borderBottomSide: DocxBorderSide(
                   style: DocxBorder.single,
                   color: DocxColor('CCCCCC'),
@@ -1314,6 +1440,8 @@ class DocxGeneratorService {
           cellParagraphs.add(
             DocxParagraph(
               align: DocxAlign.center,
+              spacingBefore: 10,
+              spacingAfter: 0,
               children: [
                 DocxText(
                   signatoryTitle.toUpperCase(),
@@ -1327,19 +1455,9 @@ class DocxGeneratorService {
           );
         }
 
-        // Draw left borders as separator lines
-        final borderLeft = i > 0
-            ? DocxBorderSide(
-                style: DocxBorder.single,
-                color: primaryGreen,
-                size: 8,
-              )
-            : DocxBorderSide.none();
-
         footerCells.add(
           DocxTableCell(
             width: colW,
-            borderLeft: borderLeft,
             children: cellParagraphs,
           ),
         );
@@ -1349,26 +1467,31 @@ class DocxGeneratorService {
         width: totalWidthTwips,
         widthType: DocxWidthType.dxa,
         style: DocxTableStyle(
+          cellPadding: 60,
           borderTop: DocxBorderSide(
-            style: DocxBorder.dashed,
-            color: blackColor,
-            size: 6,
+            style: DocxBorder.single,
+            color: primaryGreen,
+            size: 8,
           ),
           borderBottom: DocxBorderSide(
-            style: DocxBorder.dashed,
-            color: blackColor,
-            size: 6,
+            style: DocxBorder.single,
+            color: primaryGreen,
+            size: 8,
           ),
           borderLeft: DocxBorderSide.none(),
           borderRight: DocxBorderSide.none(),
           borderInsideH: DocxBorderSide.none(),
-          borderInsideV: DocxBorderSide.none(),
+          borderInsideV: DocxBorderSide(
+            style: DocxBorder.single,
+            color: primaryGreen,
+            size: 8,
+          ),
         ),
         rows: [DocxTableRow(cells: footerCells)],
       );
 
       document.addTable(footerLayoutTable);
-      document.p(''); // Spacer
+      document.paragraph(DocxParagraph(spacingBefore: 0, spacingAfter: 40, children: []));
     } else {
       // -------------------------------------------------------------
       // Dynamic Sequential standard/transport/service layout
@@ -1389,56 +1512,171 @@ class DocxGeneratorService {
           final cPan = fieldValues['company_pan'] ?? 'AAGCL7813B';
           final cGstin = fieldValues['company_gst_in'] ?? company.gstNumber;
 
-          final leftW = (totalWidthTwips * 0.65).toInt();
-          final rightW = totalWidthTwips - leftW;
+          final showLogo = adjustedTemplate.headerConfig.logoIsVisible && logoBytes != null;
+          final int leftW = (totalWidthTwips * (showLogo ? 0.50 : 0.65)).toInt();
+          final int middleW = showLogo ? (totalWidthTwips * 0.16).toInt() : 0;
+          final int rightW = totalWidthTwips - leftW - middleW;
 
-          final headerTable = DocxTable(
-            width: totalWidthTwips,
+          final List<DocxTableCell> headerCells = [
+            // Left company details
+            DocxTableCell(
+              width: leftW,
+              children: [
+                DocxParagraph(
+                  spacingBefore: 0,
+                  spacingAfter: 20,
+                  children: [
+                    DocxText(
+                      cName,
+                      fontSize: headerStyle.fontSize,
+                      fontWeight: _getDocxWeight(headerStyle.fontWeight),
+                      color: _getDocxColor(headerStyle.textColor) ?? primaryBlue,
+                      fontFamily: headerStyle.fontFamily,
+                    ),
+                  ],
+                ),
+                DocxParagraph(
+                  spacingBefore: 0,
+                  spacingAfter: 10,
+                  children: [
+                    DocxText(
+                      "Ph: $cPhone",
+                      fontSize: subheaderStyle.fontSize,
+                      fontFamily: subheaderStyle.fontFamily,
+                      color: _getDocxColor(subheaderStyle.textColor) ?? DocxColor('555555'),
+                    ),
+                  ],
+                ),
+                DocxParagraph(
+                  spacingBefore: 0,
+                  spacingAfter: 10,
+                  children: [
+                    DocxText(
+                      "Email: $cEmail   Web: $cWeb",
+                      fontSize: subheaderStyle.fontSize,
+                      fontFamily: subheaderStyle.fontFamily,
+                      color: _getDocxColor(subheaderStyle.textColor) ?? DocxColor('555555'),
+                    ),
+                  ],
+                ),
+                DocxParagraph(
+                  spacingBefore: 0,
+                  spacingAfter: 0,
+                  children: [
+                    DocxText(
+                      "Office Address: $cAddr",
+                      fontSize: subheaderStyle.fontSize,
+                      fontFamily: subheaderStyle.fontFamily,
+                      color: _getDocxColor(subheaderStyle.textColor) ?? DocxColor('555555'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ];
+
+          if (showLogo) {
+            headerCells.add(
+              DocxTableCell(
+                width: middleW,
+                children: [
+                  DocxParagraph(
+                    align: DocxAlign.center,
+                    spacingBefore: 0,
+                    spacingAfter: 0,
+                    children: [
+                      DocxInlineImage(
+                        bytes: logoBytes!,
+                        extension: logoExt ?? 'png',
+                        width: 60.0 * adjustedTemplate.headerConfig.logoSize,
+                        height: 35.0 * adjustedTemplate.headerConfig.logoSize,
+                      ),
+                    ],
+                  ),
+                  DocxParagraph(
+                    align: DocxAlign.center,
+                    spacingBefore: 10,
+                    spacingAfter: 0,
+                    children: [
+                      DocxText(
+                        "LN TOURISM",
+                        fontSize: 7.0,
+                        fontWeight: DocxFontWeight.bold,
+                        color: primaryBlue,
+                        fontFamily: 'Times New Roman',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }
+
+          // Right invoice details
+          final invoiceBoxTable = DocxTable(
+            width: rightW,
             widthType: DocxWidthType.dxa,
-            style: DocxTableStyle.plain,
+            style: DocxTableStyle(
+              cellPadding: 40,
+              borderTop: DocxBorderSide(
+                style: DocxBorder.single,
+                color: primaryGreen,
+                size: 8,
+              ),
+              borderBottom: DocxBorderSide(
+                style: DocxBorder.single,
+                color: primaryGreen,
+                size: 8,
+              ),
+              borderLeft: DocxBorderSide(
+                style: DocxBorder.single,
+                color: primaryGreen,
+                size: 8,
+              ),
+              borderRight: DocxBorderSide(
+                style: DocxBorder.single,
+                color: primaryGreen,
+                size: 8,
+              ),
+              borderInsideH: DocxBorderSide.none(),
+              borderInsideV: DocxBorderSide.none(),
+            ),
             rows: [
               DocxTableRow(
                 cells: [
                   DocxTableCell(
-                    width: leftW,
+                    colSpan: 2,
+                    shadingFill: '499F34',
                     children: [
                       DocxParagraph(
+                        align: DocxAlign.center,
+                        spacingBefore: 0,
+                        spacingAfter: 0,
                         children: [
                           DocxText(
-                            cName,
-                            fontSize: headerStyle.fontSize,
-                            fontWeight: _getDocxWeight(headerStyle.fontWeight),
-                            color:
-                                _getDocxColor(headerStyle.textColor) ??
-                                primaryBlue,
-                            fontFamily: headerStyle.fontFamily,
+                            "INVOICE",
+                            color: whiteColor,
+                            fontWeight: DocxFontWeight.bold,
+                            fontSize: 9.5,
                           ),
                         ],
                       ),
+                    ],
+                  ),
+                ],
+              ),
+              DocxTableRow(
+                cells: [
+                  DocxTableCell(
+                    width: (rightW * 0.45).toInt(),
+                    children: [
                       DocxParagraph(
+                        spacingBefore: 0,
+                        spacingAfter: 0,
                         children: [
                           DocxText(
-                            "TOURS & TRAVELS | CAR RENTAL | TRANSPORT SOLUTIONS",
-                            fontSize: subheaderStyle.fontSize,
-                            fontWeight: _getDocxWeight(
-                              subheaderStyle.fontWeight,
-                            ),
-                            color:
-                                _getDocxColor(subheaderStyle.textColor) ??
-                                primaryOrange,
-                            fontFamily: subheaderStyle.fontFamily,
-                          ),
-                        ],
-                      ),
-                      DocxParagraph(
-                        children: [
-                          DocxText("Office Address: $cAddr", fontSize: 8),
-                        ],
-                      ),
-                      DocxParagraph(
-                        children: [
-                          DocxText(
-                            "Ph: $cPhone | Email: $cEmail | Web: $cWeb",
+                            "Invoice No. :",
+                            fontWeight: DocxFontWeight.bold,
                             fontSize: 8,
                           ),
                         ],
@@ -1446,170 +1684,120 @@ class DocxGeneratorService {
                     ],
                   ),
                   DocxTableCell(
-                    width: rightW,
+                    width: (rightW * 0.55).toInt(),
                     children: [
-                      DocxTable(
-                        width: rightW,
-                        widthType: DocxWidthType.dxa,
-                        style: DocxTableStyle(
-                          borderTop: DocxBorderSide(
-                            style: DocxBorder.single,
-                            color: primaryGreen,
-                            size: 8,
+                      DocxParagraph(
+                        spacingBefore: 0,
+                        spacingAfter: 0,
+                        children: [
+                          DocxText(
+                            invoice.invoiceNumber,
+                            fontSize: 8,
                           ),
-                          borderBottom: DocxBorderSide(
-                            style: DocxBorder.single,
-                            color: primaryGreen,
-                            size: 8,
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              DocxTableRow(
+                cells: [
+                  DocxTableCell(
+                    width: (rightW * 0.45).toInt(),
+                    children: [
+                      DocxParagraph(
+                        spacingBefore: 0,
+                        spacingAfter: 0,
+                        children: [
+                          DocxText(
+                            "Invoice Date :",
+                            fontWeight: DocxFontWeight.bold,
+                            fontSize: 8,
                           ),
-                          borderLeft: DocxBorderSide(
-                            style: DocxBorder.single,
-                            color: primaryGreen,
-                            size: 8,
+                        ],
+                      ),
+                    ],
+                  ),
+                  DocxTableCell(
+                    width: (rightW * 0.55).toInt(),
+                    children: [
+                      DocxParagraph(
+                        spacingBefore: 0,
+                        spacingAfter: 0,
+                        children: [
+                          DocxText(
+                            df.format(invoice.invoiceDate),
+                            fontSize: 8,
                           ),
-                          borderRight: DocxBorderSide(
-                            style: DocxBorder.single,
-                            color: primaryGreen,
-                            size: 8,
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              DocxTableRow(
+                cells: [
+                  DocxTableCell(
+                    width: (rightW * 0.45).toInt(),
+                    children: [
+                      DocxParagraph(
+                        spacingBefore: 0,
+                        spacingAfter: 0,
+                        children: [
+                          DocxText(
+                            "PAN No. :",
+                            fontWeight: DocxFontWeight.bold,
+                            fontSize: 8,
                           ),
-                          borderInsideH: DocxBorderSide.none(),
-                          borderInsideV: DocxBorderSide.none(),
-                        ),
-                        rows: [
-                          DocxTableRow(
-                            cells: [
-                              DocxTableCell(
-                                colSpan: 2,
-                                shadingFill: '499F34',
-                                children: [
-                                  DocxParagraph(
-                                    align: DocxAlign.center,
-                                    children: [
-                                      DocxText(
-                                        "INVOICE",
-                                        color: whiteColor,
-                                        fontWeight: DocxFontWeight.bold,
-                                        fontSize: 9.5,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
+                        ],
+                      ),
+                    ],
+                  ),
+                  DocxTableCell(
+                    width: (rightW * 0.55).toInt(),
+                    children: [
+                      DocxParagraph(
+                        spacingBefore: 0,
+                        spacingAfter: 0,
+                        children: [
+                          DocxText(
+                            cPan,
+                            fontSize: 8,
                           ),
-                          DocxTableRow(
-                            cells: [
-                              DocxTableCell(
-                                width: (rightW * 0.45).toInt(),
-                                children: [
-                                  DocxParagraph(
-                                    children: [
-                                      DocxText(
-                                        "Invoice No. :",
-                                        fontWeight: DocxFontWeight.bold,
-                                        fontSize: 8,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              DocxTableCell(
-                                width: (rightW * 0.55).toInt(),
-                                children: [
-                                  DocxParagraph(
-                                    children: [
-                                      DocxText(
-                                        invoice.invoiceNumber,
-                                        fontSize: 8,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              DocxTableRow(
+                cells: [
+                  DocxTableCell(
+                    width: (rightW * 0.45).toInt(),
+                    children: [
+                      DocxParagraph(
+                        spacingBefore: 0,
+                        spacingAfter: 0,
+                        children: [
+                          DocxText(
+                            "GSTIN :",
+                            fontWeight: DocxFontWeight.bold,
+                            fontSize: 8,
                           ),
-                          DocxTableRow(
-                            cells: [
-                              DocxTableCell(
-                                width: (rightW * 0.45).toInt(),
-                                children: [
-                                  DocxParagraph(
-                                    children: [
-                                      DocxText(
-                                        "Invoice Date :",
-                                        fontWeight: DocxFontWeight.bold,
-                                        fontSize: 8,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              DocxTableCell(
-                                width: (rightW * 0.55).toInt(),
-                                children: [
-                                  DocxParagraph(
-                                    children: [
-                                      DocxText(
-                                        df.format(invoice.invoiceDate),
-                                        fontSize: 8,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          DocxTableRow(
-                            cells: [
-                              DocxTableCell(
-                                width: (rightW * 0.45).toInt(),
-                                children: [
-                                  DocxParagraph(
-                                    children: [
-                                      DocxText(
-                                        "PAN No. :",
-                                        fontWeight: DocxFontWeight.bold,
-                                        fontSize: 8,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              DocxTableCell(
-                                width: (rightW * 0.55).toInt(),
-                                children: [
-                                  DocxParagraph(
-                                    children: [DocxText(cPan, fontSize: 8)],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          DocxTableRow(
-                            cells: [
-                              DocxTableCell(
-                                width: (rightW * 0.45).toInt(),
-                                children: [
-                                  DocxParagraph(
-                                    children: [
-                                      DocxText(
-                                        "GSTIN :",
-                                        fontWeight: DocxFontWeight.bold,
-                                        fontSize: 8,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              DocxTableCell(
-                                width: (rightW * 0.55).toInt(),
-                                children: [
-                                  DocxParagraph(
-                                    children: [DocxText(cGstin, fontSize: 8)],
-                                  ),
-                                ],
-                              ),
-                            ],
+                        ],
+                      ),
+                    ],
+                  ),
+                  DocxTableCell(
+                    width: (rightW * 0.55).toInt(),
+                    children: [
+                      DocxParagraph(
+                        spacingBefore: 0,
+                        spacingAfter: 0,
+                        children: [
+                          DocxText(
+                            cGstin,
+                            fontSize: 8,
                           ),
                         ],
                       ),
@@ -1620,8 +1808,35 @@ class DocxGeneratorService {
             ],
           );
 
+          headerCells.add(
+            DocxTableCell(
+              width: rightW,
+              children: [
+                invoiceBoxTable,
+              ],
+            ),
+          );
+
+          final headerTable = DocxTable(
+            width: totalWidthTwips,
+            widthType: DocxWidthType.dxa,
+            style: DocxTableStyle(
+              cellPadding: 0,
+              border: DocxBorder.none,
+            ),
+            rows: [DocxTableRow(cells: headerCells)],
+          );
+
           document.addTable(headerTable);
-          document.p('');
+          
+          // Tight precise spacer gap matching the template's dynamic sectionGap
+          document.paragraph(
+            DocxParagraph(
+              spacingBefore: 0,
+              spacingAfter: (adjustedTemplate.sectionGap * 20).toInt(),
+              children: [DocxText("", fontSize: 1)],
+            ),
+          );
         } else if (sec.id == 'customer_details' ||
             sec.id == 'invoice_info' ||
             sec.id == 'service_details') {
@@ -1630,6 +1845,8 @@ class DocxGeneratorService {
 
           document.paragraph(
             DocxParagraph(
+              spacingBefore: (adjustedTemplate.sectionGap * 20).toInt(),
+              spacingAfter: 40,
               borderBottomSide: DocxBorderSide(
                 style: DocxBorder.single,
                 color: primaryGreen,
@@ -1675,6 +1892,8 @@ class DocxGeneratorService {
                     width: cellW,
                     children: [
                       DocxParagraph(
+                        spacingBefore: 0,
+                        spacingAfter: 0,
                         children: [
                           DocxText(
                             "${f1.label}: ",
@@ -1699,13 +1918,15 @@ class DocxGeneratorService {
                   ),
                   DocxTableCell(
                     width: spacerW,
-                    children: [DocxParagraph(children: [])],
+                    children: [DocxParagraph(spacingBefore: 0, spacingAfter: 0, children: [])],
                   ),
                   DocxTableCell(
                     width: cellW,
                     children: [
                       label2.isNotEmpty
                           ? DocxParagraph(
+                              spacingBefore: 0,
+                              spacingAfter: 0,
                               children: [
                                 DocxText(
                                   "$label2: ",
@@ -1726,7 +1947,7 @@ class DocxGeneratorService {
                                 ),
                               ],
                             )
-                          : DocxParagraph(children: []),
+                          : DocxParagraph(spacingBefore: 0, spacingAfter: 0, children: []),
                     ],
                   ),
                 ],
@@ -1738,11 +1959,13 @@ class DocxGeneratorService {
             DocxTable(
               width: totalWidthTwips,
               widthType: DocxWidthType.dxa,
-              style: DocxTableStyle.plain,
+              style: DocxTableStyle(
+                cellPadding: 40,
+                border: DocxBorder.none,
+              ),
               rows: fieldRows,
             ),
           );
-          document.p('');
         } else if (sec.id == 'items_table') {
           final visibleColsStandard =
               adjustedTemplate.tableColumns.where((c) => c.isVisible).toList()
@@ -1765,6 +1988,8 @@ class DocxGeneratorService {
                   children: [
                     DocxParagraph(
                       align: DocxAlign.center,
+                      spacingBefore: 0,
+                      spacingAfter: 0,
                       children: [
                         DocxText(
                           col.label,
@@ -1807,7 +2032,7 @@ class DocxGeneratorService {
                       col.id == 'qty') {
                     align = DocxAlign.center;
                   } else if (col.id == 'rate' || col.id == 'amount') {
-                    align = DocxAlign.right;
+                      align = DocxAlign.right;
                   } else {
                     align = col.alignment == 'right'
                         ? DocxAlign.right
@@ -1821,6 +2046,8 @@ class DocxGeneratorService {
                     children: [
                       DocxParagraph(
                         align: align,
+                        spacingBefore: 0,
+                        spacingAfter: 0,
                         children: [
                           DocxText(
                             cellText,
@@ -1837,6 +2064,15 @@ class DocxGeneratorService {
             );
           }
 
+          // Gap before items table
+          document.paragraph(
+            DocxParagraph(
+              spacingBefore: (adjustedTemplate.sectionGap * 20).toInt(),
+              spacingAfter: 0,
+              children: [DocxText("", fontSize: 1)],
+            ),
+          );
+
           document.addTable(
             DocxTable(
               width: totalWidthTwips,
@@ -1845,11 +2081,11 @@ class DocxGeneratorService {
                 border: DocxBorder.single,
                 borderColor: '000000',
                 borderWidth: 4,
+                cellPadding: 70,
               ),
               rows: tblRows,
             ),
           );
-          document.p('');
         } else if (sec.id == 'tax_summary') {
           final rightW = (totalWidthTwips * 0.40).toInt();
           final leftW = totalWidthTwips - rightW;
@@ -1874,6 +2110,8 @@ class DocxGeneratorService {
                   shadingFill: shading,
                   children: [
                     DocxParagraph(
+                      spacingBefore: 0,
+                      spacingAfter: 0,
                       children: [
                         DocxText(
                           label,
@@ -1892,6 +2130,8 @@ class DocxGeneratorService {
                   children: [
                     DocxParagraph(
                       align: DocxAlign.right,
+                      spacingBefore: 0,
+                      spacingAfter: 0,
                       children: [
                         DocxText(
                           "Rs. $value",
@@ -1916,6 +2156,7 @@ class DocxGeneratorService {
               border: DocxBorder.single,
               borderColor: '000000',
               borderWidth: 4,
+              cellPadding: 50,
             ),
             rows: [
               _totalsRow(
@@ -1944,7 +2185,10 @@ class DocxGeneratorService {
           final summaryLayout = DocxTable(
             width: totalWidthTwips,
             widthType: DocxWidthType.dxa,
-            style: DocxTableStyle.plain,
+            style: DocxTableStyle(
+              cellPadding: 0,
+              border: DocxBorder.none,
+            ),
             rows: [
               DocxTableRow(
                 cells: [
@@ -1952,28 +2196,48 @@ class DocxGeneratorService {
                     width: leftW,
                     children: [
                       DocxParagraph(
+                        spacingBefore: 0,
+                        spacingAfter: 0,
                         children: [
                           DocxText(
-                            "Amount to be paid in words: ",
+                            "Amount to be paid in words : ",
                             fontWeight: DocxFontWeight.bold,
                             fontSize: 8,
                           ),
-                          DocxText(invoice.amountPaidInWords, fontSize: 8),
+                          DocxText(
+                            invoice.amountPaidInWords.endsWith(' Only') ? '${invoice.amountPaidInWords}.' : (invoice.amountPaidInWords.endsWith(' Only.') ? invoice.amountPaidInWords : '${invoice.amountPaidInWords} Only.'),
+                            fontSize: 8,
+                          ),
                         ],
                       ),
                     ],
                   ),
-                  DocxTableCell(width: rightW, children: [summaryTable]),
+                  DocxTableCell(
+                    width: rightW,
+                    children: [
+                      summaryTable,
+                    ],
+                  ),
                 ],
               ),
             ],
           );
 
+          // Gap before tax summary layout
+          document.paragraph(
+            DocxParagraph(
+              spacingBefore: (adjustedTemplate.sectionGap * 20).toInt(),
+              spacingAfter: 0,
+              children: [DocxText("", fontSize: 1)],
+            ),
+          );
+
           document.addTable(summaryLayout);
-          document.p('');
         } else if (sec.id == 'payment_info') {
           document.paragraph(
             DocxParagraph(
+              spacingBefore: (adjustedTemplate.sectionGap * 20).toInt(),
+              spacingAfter: 40,
               borderBottomSide: DocxBorderSide(
                 style: DocxBorder.single,
                 color: primaryGreen,
@@ -1992,17 +2256,42 @@ class DocxGeneratorService {
             ),
           );
 
-          document.p("Account Name: $bankAccountName");
-          document.p("Bank Name: $bankName");
-          document.p("Account Number: $bankAccountNo");
-          document.p("IFSC Code: $bankIfsc");
-          if (bankBranch.isNotEmpty) {
-            document.p("Branch: $bankBranch");
+          void _addBankField(String label, String value) {
+            document.paragraph(
+              DocxParagraph(
+                spacingBefore: 0,
+                spacingAfter: 20,
+                children: [
+                  DocxText(
+                    "$label: ",
+                    fontWeight: DocxFontWeight.bold,
+                    fontSize: bodyStyle.fontSize,
+                    fontFamily: bodyStyle.fontFamily,
+                    color: _getDocxColor(bodyStyle.textColor),
+                  ),
+                  DocxText(
+                    value,
+                    fontSize: bodyStyle.fontSize,
+                    fontFamily: bodyStyle.fontFamily,
+                    color: _getDocxColor(bodyStyle.textColor),
+                  ),
+                ],
+              ),
+            );
           }
-          document.p('');
+
+          _addBankField("Account Name", bankAccountName.toString());
+          _addBankField("Bank Name", bankName.toString());
+          _addBankField("Account Number", bankAccountNo.toString());
+          _addBankField("IFSC Code", bankIfsc.toString());
+          if (bankBranch.isNotEmpty) {
+            _addBankField("Branch", bankBranch.toString());
+          }
         } else if (sec.id == 'terms_conditions') {
           document.paragraph(
             DocxParagraph(
+              spacingBefore: (adjustedTemplate.sectionGap * 20).toInt(),
+              spacingAfter: 40,
               borderBottomSide: DocxBorderSide(
                 style: DocxBorder.single,
                 color: primaryGreen,
@@ -2022,26 +2311,43 @@ class DocxGeneratorService {
           );
 
           for (final term in termsList) {
-            document.p(term);
+            document.paragraph(
+              DocxParagraph(
+                spacingBefore: 0,
+                spacingAfter: 20,
+                children: [
+                  DocxText(
+                    term,
+                    fontSize: bodyStyle.fontSize,
+                    color: _getDocxColor(bodyStyle.textColor),
+                    fontFamily: bodyStyle.fontFamily,
+                  ),
+                ],
+              ),
+            );
           }
-          document.p('');
         } else if (sec.id == 'signature') {
           final sigTable = DocxTable(
             width: totalWidthTwips,
             widthType: DocxWidthType.dxa,
-            style: DocxTableStyle.plain,
+            style: DocxTableStyle(
+              cellPadding: 0,
+              border: DocxBorder.none,
+            ),
             rows: [
               DocxTableRow(
                 cells: [
                   DocxTableCell(
                     width: (totalWidthTwips * 0.6).toInt(),
-                    children: [DocxParagraph(children: [])],
+                    children: [DocxParagraph(spacingBefore: 0, spacingAfter: 0, children: [])],
                   ),
                   DocxTableCell(
                     width: (totalWidthTwips * 0.4).toInt(),
                     children: [
                       DocxParagraph(
                         align: DocxAlign.center,
+                        spacingBefore: 0,
+                        spacingAfter: 20,
                         children: [
                           DocxText(
                             "FOR ${company.name.toUpperCase()}",
@@ -2054,6 +2360,8 @@ class DocxGeneratorService {
                       sigBytes != null
                           ? DocxParagraph(
                               align: DocxAlign.center,
+                              spacingBefore: 0,
+                              spacingAfter: 20,
                               children: [
                                 DocxInlineImage(
                                   bytes: sigBytes,
@@ -2063,9 +2371,11 @@ class DocxGeneratorService {
                                 ),
                               ],
                             )
-                          : DocxParagraph(children: []),
+                          : DocxParagraph(spacingBefore: 0, spacingAfter: 0, children: []),
                       DocxParagraph(
                         align: DocxAlign.center,
+                        spacingBefore: 0,
+                        spacingAfter: 10,
                         borderBottomSide: DocxBorderSide(
                           style: DocxBorder.single,
                           color: DocxColor('CCCCCC'),
@@ -2083,6 +2393,8 @@ class DocxGeneratorService {
                       ),
                       DocxParagraph(
                         align: DocxAlign.center,
+                        spacingBefore: 10,
+                        spacingAfter: 0,
                         children: [
                           DocxText(
                             signatoryTitle.toUpperCase(),
@@ -2099,6 +2411,15 @@ class DocxGeneratorService {
             ],
           );
 
+          // Gap before signature table
+          document.paragraph(
+            DocxParagraph(
+              spacingBefore: (adjustedTemplate.sectionGap * 20).toInt(),
+              spacingAfter: 0,
+              children: [DocxText("", fontSize: 1)],
+            ),
+          );
+
           document.addTable(sigTable);
         }
       }
@@ -2106,7 +2427,57 @@ class DocxGeneratorService {
 
     final builtDoc = document.build();
     final bytes = await DocxExporter().exportToBytes(builtDoc);
-    return Uint8List.fromList(bytes);
+    // Post-process: fix invalid OOXML alignment values emitted by docx_creator.
+    // Microsoft Word only accepts "left"/"right"/"center"/"both" for w:jc.
+    // The docx_creator library incorrectly emits "start" and "end" instead.
+    final fixedBytes = fixDocxAlignmentValues(Uint8List.fromList(bytes));
+    return fixedBytes;
+  }
+
+  /// Patches the word/document.xml inside a DOCX ZIP to fix two classes of
+  /// OOXML corruption that Microsoft Word rejects:
+  ///
+  /// 1. Invalid alignment values: `w:val="start"` → `w:val="left"` and
+  ///    `w:val="end"` → `w:val="right"` (emitted incorrectly by docx_creator).
+  ///
+  /// 2. Missing trailing paragraph in table cells that contain nested tables:
+  ///    OOXML requires every `<w:tc>` to end with a `<w:p>` element. When a
+  ///    cell contains a nested `<w:tbl>`, a trailing `<w:p/>` must follow it
+  ///    before `</w:tc>` closes. We inject `<w:p/>` wherever this is missing.
+  ///
+  /// This can be called on any existing .docx file to repair it.
+  static Uint8List fixDocxAlignmentValues(Uint8List docxBytes) {
+    try {
+      final archive = ZipDecoder().decodeBytes(docxBytes);
+      final newArchive = Archive();
+
+      for (final file in archive) {
+        if (file.isFile && file.name == 'word/document.xml') {
+          String xml = utf8.decode(file.content as List<int>);
+
+          // Fix 1: Replace w:jc alignment values emitted as CSS logical names.
+          xml = xml
+              .replaceAll('w:val="start"', 'w:val="left"')
+              .replaceAll('w:val="end"', 'w:val="right"');
+
+          // Fix 2: Inject missing trailing <w:p/> in cells that end with a
+          // nested table. OOXML mandates a paragraph at the end of every <w:tc>.
+          xml = xml.replaceAll('</w:tbl></w:tc>', '</w:tbl><w:p/></w:tc>');
+
+          final fixedContent = utf8.encode(xml);
+          newArchive.addFile(
+            ArchiveFile(file.name, fixedContent.length, fixedContent),
+          );
+        } else {
+          newArchive.addFile(file);
+        }
+      }
+
+      return Uint8List.fromList(ZipEncoder().encode(newArchive)!);
+    } catch (_) {
+      // If patching fails for any reason, return the original bytes unchanged.
+      return docxBytes;
+    }
   }
 
   static String _getItemCellText(

@@ -257,11 +257,15 @@ class TourismLayoutConfig {
         // Calculate company details text height (excluding address)
         double companyDetailsHeight = 0.0;
         for (final f in companyDetailsFields) {
+          // Use 10pt effective size for company name (matches renderer)
+          final effectiveFontSize = f.id == 'company_name' ? 10.0 : null;
           final style = f.id == 'company_name'
-              ? headerStyle
+              ? headerStyle.copyWith(fontSize: effectiveFontSize ?? headerStyle.fontSize)
               : (f.id == 'company_tagline' ? subheaderStyle : bodyStyle);
           final fh = getFieldHeight(f, style);
-          companyDetailsHeight += fh + 2.0;
+          // Contact fields (phone/email/website) get tighter gap
+          final isContact = f.id == 'company_phone' || f.id == 'company_email' || f.id == 'company_website';
+          companyDetailsHeight += fh + (isContact ? 1.0 : 2.0);
         }
 
         // Row 1 is the side-by-side section of company details and logo
@@ -304,12 +308,14 @@ class TourismLayoutConfig {
         // Layout stacked company details fields
         double companyYOffset = 0.0;
         for (final f in companyDetailsFields) {
+          final effectiveFontSize = f.id == 'company_name' ? 10.0 : null;
           final style = f.id == 'company_name'
-              ? headerStyle
+              ? headerStyle.copyWith(fontSize: effectiveFontSize ?? headerStyle.fontSize)
               : (f.id == 'company_tagline' ? subheaderStyle : bodyStyle);
           final fh = getFieldHeight(f, style);
           _fieldLayouts[f.id] = FieldLayout(leftMargin, leftStartY + companyYOffset, textW, fh);
-          companyYOffset += fh + 2.0;
+          final isContact = f.id == 'company_phone' || f.id == 'company_email' || f.id == 'company_website';
+          companyYOffset += fh + (isContact ? 1.0 : 2.0);
         }
 
         // Layout company address field below details + logo

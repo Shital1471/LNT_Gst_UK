@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -8,9 +9,11 @@ import '../../../core/database/app_database.dart';
 import '../../../core/providers/database_provider.dart';
 import 'package:drift/drift.dart' hide Column;
 import '../providers/invoice_form_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../company/providers/company_provider.dart';
 import 'invoice_preview_screen.dart';
 import '../../../core/utils/navigation.dart';
+import '../services/docx_generator.dart';
 
 final invoicesStreamProvider = StreamProvider<List<Invoice>>((ref) {
   final db = ref.watch(databaseProvider);
@@ -96,6 +99,60 @@ class _InvoiceHistoryScreenState extends ConsumerState<InvoiceHistoryScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text('Download failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _openDocx(Invoice invoice) async {
+    if (invoice.docxPath == null || invoice.docxPath!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Word file path not found in database.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    try {
+      final file = File(invoice.docxPath!);
+      if (!await file.exists()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Word file not found on disk.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      final path = invoice.docxPath!;
+
+      // Read existing bytes and apply OOXML alignment fix so Word opens cleanly.
+      // Old files saved before the fix still contain invalid w:val="start"/"end".
+      final rawBytes = await file.readAsBytes();
+      final fixedBytes = DocxGeneratorService.fixDocxAlignmentValues(
+        Uint8List.fromList(rawBytes),
+      );
+      await file.writeAsBytes(fixedBytes);
+
+      // On Windows, use the shell to open with the registered .docx handler
+      if (Platform.isWindows) {
+        await Process.run('cmd', ['/c', 'start', '', path]);
+      } else if (Platform.isMacOS) {
+        await Process.run('open', [path]);
+      } else if (Platform.isLinux) {
+        await Process.run('xdg-open', [path]);
+      } else {
+        final uri = Uri.file(path);
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error opening Word file: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -575,6 +632,12 @@ class _InvoiceHistoryScreenState extends ConsumerState<InvoiceHistoryScreen> {
           tooltip: 'View Invoice',
           color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF3B82F6),
           onTap: () => _viewInvoice(invoice),
+        ),
+        _actionIconBtn(
+          icon: Icons.edit_document,
+          tooltip: 'Open Word File',
+          color: isDark ? AppTheme.jadeDark : AppTheme.jadeLight,
+          onTap: () => _openDocx(invoice),
         ),
         _actionIconBtn(
           icon: Icons.file_download_outlined,

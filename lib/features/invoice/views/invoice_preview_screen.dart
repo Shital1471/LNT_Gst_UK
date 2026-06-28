@@ -16,6 +16,7 @@ import '../services/pdf_generator.dart';
 import '../services/docx_generator.dart';
 import '../models/invoice_template_schema.dart';
 import '../providers/invoice_form_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/providers/shortcuts_provider.dart';
 import 'tourism_preview_widget.dart';
 
@@ -211,6 +212,39 @@ class _InvoicePreviewScreenState extends ConsumerState<InvoicePreviewScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error saving DOCX: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _openDocxFile() async {
+    if (_docxBytes == null) return;
+    try {
+      String? path = widget.invoice.docxPath;
+      if (path == null || path.isEmpty || widget.isTemporary) {
+        final tempDir = await getTemporaryDirectory();
+        path = p.join(tempDir.path, '${widget.invoice.invoiceNumber}.docx');
+      }
+
+      // Always write the latest bytes so the file is up-to-date
+      final file = File(path);
+      await file.writeAsBytes(_docxBytes!);
+
+      // On Windows, use the shell to open with the registered .docx handler
+      if (Platform.isWindows) {
+        await Process.run('cmd', ['/c', 'start', '', path]);
+      } else if (Platform.isMacOS) {
+        await Process.run('open', [path]);
+      } else if (Platform.isLinux) {
+        await Process.run('xdg-open', [path]);
+      } else {
+        final uri = Uri.file(path);
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error opening Word file: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -435,6 +469,12 @@ class _InvoicePreviewScreenState extends ConsumerState<InvoicePreviewScreen> {
                             onPressed: _downloadDocx,
                             icon: const Icon(Icons.edit_document, color: AppTheme.primaryGreen),
                             label: const Text('Download DOCX'),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: _openDocxFile,
+                            icon: const Icon(Icons.open_in_new, color: AppTheme.accentOrange),
+                            label: const Text('Open Word File'),
                           ),
                           const SizedBox(height: 12),
                           OutlinedButton.icon(
